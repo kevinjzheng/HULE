@@ -8,7 +8,9 @@ A browser-based Hong Kong Mahjong (廣東麻雀) game built with React, TypeScri
 
 Hong Kong Mahjong (廣東麻雀) is the most widely played variant of mahjong, using a 144-tile set (136 numbered tiles + 8 flower/season bonus tiles). Players build a winning hand of 14 tiles through a cycle of drawing and discarding. Hands are evaluated by their **fan** value — a point multiplier system where different combinations each contribute a number of fans. Points are settled between all players after each winning hand.
 
-Scoring reference: [Hong Kong Mahjong Scoring — Wikipedia](https://en.wikipedia.org/wiki/Hong_Kong_mahjong_scoring)
+Scoring reference: 
+[Hong Kong Mahjong Scoring — Wikipedia](https://en.wikipedia.org/wiki/Hong_Kong_mahjong_scoring)
+[Hong Kong Mahjong Scoring Guide](https://docs.google.com/document/d/1NBE6n6PjTUZTOovkKI3vujHYXhTNVJRMZgKoo4tElM4/edit?tab=t.0)
 
 ---
 

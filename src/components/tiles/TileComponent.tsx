@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import type { Tile } from '../../types'
-import { tileUnicode, tileChinese, tileEnglish, SUIT_COLORS, tileKey } from '../../constants/tiles'
+import { tileChinese, tileEnglish, tileKey } from '../../constants/tiles'
+import { getTileImage, TILE_BACK_IMAGE } from '../../constants/tileImages'
 import { cn } from '../../utils/cn'
 import { useUIStore } from '../../store/uiStore'
 
@@ -10,8 +11,8 @@ interface TileComponentProps {
   faceDown?: boolean
   selected?: boolean
   highlight?: boolean
-  /** small = melds/discard pools; default = hand tiles */
   small?: boolean
+  medium?: boolean
   onClick?: () => void
   className?: string
   style?: React.CSSProperties
@@ -23,6 +24,7 @@ export function TileComponent({
   selected = false,
   highlight = false,
   small = false,
+  medium = false,
   onClick,
   className,
   style,
@@ -31,19 +33,22 @@ export function TileComponent({
   const divRef = useRef<HTMLDivElement>(null)
   const { hoveredTileKey, setHoveredTileKey } = useUIStore()
 
-  if (faceDown) return <TileBack small={small} className={className} style={style} />
+  if (faceDown) return <TileBack small={small} medium={medium} className={className} style={style} />
 
-  const color = SUIT_COLORS[tile.suit] ?? '#333'
-  const unicode = tileUnicode(tile)
-  const chinese = tileChinese(tile)
   const english = tileEnglish(tile)
-  const isBonus = tile.suit === 'bonus'
   const key = tileKey(tile)
+  const imgSrc = getTileImage(key)
   const isCrossHighlighted = hoveredTileKey === key && !highlight && !selected
+
+  const sizeClass = small
+    ? 'w-10 h-14'
+    : medium
+      ? 'w-[3.2rem] h-[4.4rem]'
+      : 'w-[4.6rem] h-[6.2rem]'
 
   const handleMouseEnter = () => {
     setHoveredTileKey(key)
-    if (small) return
+    if (small || medium) return
     const rect = divRef.current?.getBoundingClientRect()
     if (rect) {
       setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 6 })
@@ -59,24 +64,18 @@ export function TileComponent({
     <div
       ref={divRef}
       className={cn(
-        'relative inline-flex flex-col items-center justify-center rounded-md',
-        'border-2 shadow-tile select-none font-mahjong',
-        'transition-all duration-150 ease-out',
-        small
-          ? 'w-10 h-14 border'
-          : 'w-[4.6rem] h-[6.2rem]',
+        'relative inline-flex items-center justify-center rounded-md select-none',
+        'transition-all duration-150 ease-out overflow-hidden',
+        sizeClass,
         highlight
-          ? 'border-emerald-400'
+          ? 'ring-2 ring-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
           : selected
-            ? 'border-yellow-400'
+            ? 'ring-2 ring-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]'
             : isCrossHighlighted
-              ? 'border-sky-400'
-              : 'border-tile-border',
-        isBonus ? 'bg-amber-50' : 'bg-tile-bg',
-        onClick && 'cursor-pointer hover:-translate-y-2 hover:shadow-tile-hover',
-        selected && '-translate-y-5 shadow-tile-hover ring-2 ring-yellow-300',
-        highlight && 'ring-1 ring-emerald-300',
-        isCrossHighlighted && 'ring-2 ring-sky-400 brightness-110',
+              ? 'ring-2 ring-sky-400 brightness-110'
+              : '',
+        onClick && 'cursor-pointer hover:-translate-y-2',
+        selected && '-translate-y-5',
         className,
       )}
       style={style}
@@ -84,23 +83,25 @@ export function TileComponent({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <span
-        className={cn('leading-none', small ? 'text-[1.9rem]' : 'text-[3.6rem]')}
-        style={{ fontFamily: '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif' }}
-      >
-        {unicode}
-      </span>
-
-      {!small && (
-        <span
-          className="text-[11px] leading-none mt-0.5 font-semibold"
-          style={{ color, opacity: 0.65 }}
-        >
-          {chinese}
-        </span>
+      {imgSrc ? (
+        <img
+          src={imgSrc}
+          alt={english}
+          draggable={false}
+          className="w-full h-full object-contain"
+        />
+      ) : (
+        /* Fallback: plain ivory tile with Chinese label */
+        <div className="w-full h-full bg-amber-50 border border-amber-200 flex items-center justify-center rounded-md">
+          <span className={cn('font-semibold text-center leading-tight px-0.5',
+            small ? 'text-[9px]' : 'text-xs'
+          )}>
+            {tileChinese(tile)}
+          </span>
+        </div>
       )}
 
-      {/* Portal tooltip — uses fixed position to escape overflow-hidden ancestors */}
+      {/* Portal tooltip */}
       {tooltipPos && ReactDOM.createPortal(
         <div
           className="fixed z-[9999] px-2.5 py-1 rounded-lg bg-slate-900/95 text-white text-xs whitespace-nowrap pointer-events-none shadow-xl border border-slate-600 -translate-x-1/2 -translate-y-full"
@@ -117,34 +118,48 @@ export function TileComponent({
 
 export function TileBack({
   small = false,
+  medium = false,
   className,
   style,
 }: {
   small?: boolean
+  medium?: boolean
   className?: string
   style?: React.CSSProperties
 }) {
+  const sizeClass = small
+    ? 'w-10 h-14'
+    : medium
+      ? 'w-[3.2rem] h-[4.4rem]'
+      : 'w-[4.6rem] h-[6.2rem]'
+
   return (
     <div
       className={cn(
-        'inline-flex items-center justify-center rounded-md',
-        'bg-gradient-to-br from-slate-500 to-slate-700',
-        'border-2 border-slate-400 shadow-tile select-none',
-        small ? 'w-10 h-14 border' : 'w-[4.6rem] h-[6.2rem]',
+        'inline-flex items-center justify-center rounded-md select-none overflow-hidden',
+        sizeClass,
         className,
       )}
       style={style}
     >
-      {/* Classic cross-hatch tile back pattern */}
-      <div className={cn(
-        'border-2 border-slate-300/25 rounded-sm grid grid-cols-2 gap-0.5 p-0.5',
-        small ? 'w-6 h-8' : 'w-9 h-12',
-      )}>
-        <div className="bg-slate-300/20 rounded-sm" />
-        <div className="bg-slate-300/20 rounded-sm" />
-        <div className="bg-slate-300/20 rounded-sm" />
-        <div className="bg-slate-300/20 rounded-sm" />
-      </div>
+      {TILE_BACK_IMAGE ? (
+        <img
+          src={TILE_BACK_IMAGE}
+          alt="tile back"
+          draggable={false}
+          className="w-full h-full object-contain"
+        />
+      ) : (
+        /* Fallback crosshatch pattern */
+        <div className="w-full h-full bg-gradient-to-br from-slate-500 to-slate-700 border-2 border-slate-400 rounded-md flex items-center justify-center">
+          <div className="border border-slate-300/25 rounded-sm grid grid-cols-2 gap-0.5 p-0.5 w-6 h-8">
+            <div className="bg-slate-300/20 rounded-sm" />
+            <div className="bg-slate-300/20 rounded-sm" />
+            <div className="bg-slate-300/20 rounded-sm" />
+            <div className="bg-slate-300/20 rounded-sm" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

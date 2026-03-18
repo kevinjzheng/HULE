@@ -6,7 +6,7 @@ import { cn } from '../../utils/cn'
 
 export function ScoreModal() {
   const { state, dispatch } = useGameStore()
-  const { setShowScoreModal, setShowWinAnimation } = useUIStore()
+  const { setShowScoreModal, setShowWinAnimation, setShowWinningHand } = useUIStore()
 
   const lastResult = state.roundHistory[state.roundHistory.length - 1]
   if (!lastResult) return null
@@ -15,6 +15,7 @@ export function ScoreModal() {
   const winnerPlayer = winner !== null ? state.players[winner] : null
 
   const handleNext = () => {
+    setShowWinningHand(false)
     setShowScoreModal(false)
     setShowWinAnimation(false)
     dispatch({ type: 'NEXT_ROUND' })
@@ -62,7 +63,7 @@ export function ScoreModal() {
                 <span className="text-green-400">{fanBreakdown.totalFan} fan</span>
               </div>
               <div className="flex justify-between font-bold text-lg mt-1">
-                <span className="text-white">Base Points</span>
+                <span className="text-white">Total Points</span>
                 <span className="text-yellow-400">{fanBreakdown.basePoints} pts</span>
               </div>
             </div>

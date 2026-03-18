@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useUIStore } from '../../store/uiStore'
+import { useUIStore, type ShufflePhase } from '../../store/uiStore'
 import { playShuffling } from '../../utils/sounds'
+import { TILE_BLANK_IMAGE } from '../../constants/tileImages'
 
 // ─── Blank tile particle ──────────────────────────────────────────────────────
 
@@ -15,9 +16,9 @@ interface Particle {
   rotV: number
 }
 
-const TILE_W = 46
-const TILE_H = 62
-const NUM_TILES = 80       // plenty to fill the table
+const TILE_W = 52
+const TILE_H = 72
+const NUM_TILES = 80
 const REPULSION_RADIUS = 140
 const MAX_FORCE = 16
 
@@ -54,10 +55,10 @@ function roundedRect(
   ctx.closePath()
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Canvas animation — only mounts when shuffle is active ───────────────────
+// Separated so that canvasRef is always set when useEffect runs
 
-export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
-  const { shufflePhase } = useUIStore()
+function ShuffleCanvas({ shufflePhase }: { shufflePhase: ShufflePhase }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particlesRef = useRef<Particle[]>([])
   const cursorRef = useRef({ x: -9999, y: -9999 })
@@ -78,6 +79,15 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
 
     particlesRef.current = createParticles(W, H)
 
+    // Load blank tile image
+    const blankImg = new Image()
+    let imageReady = false
+    blankImg.onload = () => { imageReady = true }
+    blankImg.onerror = () => { imageReady = false }
+    if (TILE_BLANK_IMAGE) {
+      blankImg.src = TILE_BLANK_IMAGE
+    }
+
     const onMove = (e: MouseEvent) => { cursorRef.current = { x: e.clientX, y: e.clientY } }
     const onTouch = (e: TouchEvent) => {
       if (e.touches[0]) cursorRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
@@ -85,8 +95,7 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('touchmove', onTouch, { passive: true })
 
-    // Shuffle sound interval during scattering
-    // Play immediately then on interval
+    // Shuffle sound — only during scattering phase
     if (phaseRef.current === 'scattering') playShuffling()
     const shuffleInterval = setInterval(() => {
       if (phaseRef.current === 'scattering') playShuffling()
@@ -98,7 +107,6 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
     const tick = () => {
       ctx.clearRect(0, 0, W, H)
 
-      // Slightly tinted felt background already provided by parent div
       const cx = cursorRef.current.x
       const cy = cursorRef.current.y
       const collecting = phaseRef.current === 'collecting' || phaseRef.current === 'dealing'
@@ -134,7 +142,7 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
         p.y += p.vy
         p.rotation += p.rotV
 
-        // ── Draw a blank ivory tile ──────────────────────────────────────
+        // Draw tile
         ctx.save()
         ctx.translate(p.x, p.y)
         ctx.rotate((p.rotation * Math.PI) / 180)
@@ -142,44 +150,30 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
         const hw = TILE_W / 2
         const hh = TILE_H / 2
 
-        // Shadow
-        ctx.shadowColor = 'rgba(0,0,0,0.45)'
-        ctx.shadowBlur = 10
+        ctx.shadowColor = 'rgba(0,0,0,0.35)'
+        ctx.shadowBlur = 8
         ctx.shadowOffsetX = 2
-        ctx.shadowOffsetY = 4
+        ctx.shadowOffsetY = 3
 
-        // Ivory body
-        ctx.fillStyle = '#f0eadb'
-        roundedRect(ctx, -hw, -hh, TILE_W, TILE_H, 5)
-        ctx.fill()
+        if (imageReady) {
+          ctx.drawImage(blankImg, -hw, -hh, TILE_W, TILE_H)
+        } else {
+          // Fallback: plain ivory tile shape
+          ctx.fillStyle = '#f0eadb'
+          roundedRect(ctx, -hw, -hh, TILE_W, TILE_H, 5)
+          ctx.fill()
+          ctx.shadowColor = 'transparent'
+          ctx.strokeStyle = '#c8b896'
+          ctx.lineWidth = 1.5
+          roundedRect(ctx, -hw, -hh, TILE_W, TILE_H, 5)
+          ctx.stroke()
+        }
 
-        // Reset shadow before borders
         ctx.shadowColor = 'transparent'
-
-        // Outer border
-        ctx.strokeStyle = '#c8b896'
-        ctx.lineWidth = 1.5
-        roundedRect(ctx, -hw, -hh, TILE_W, TILE_H, 5)
-        ctx.stroke()
-
-        // Inner inset border — classic tile look
-        ctx.strokeStyle = 'rgba(160,130,90,0.35)'
-        ctx.lineWidth = 1
-        roundedRect(ctx, -hw + 4, -hh + 4, TILE_W - 8, TILE_H - 8, 3)
-        ctx.stroke()
-
-        // Subtle diagonal sheen on upper-left
-        const sheen = ctx.createLinearGradient(-hw, -hh, hw * 0.4, hh * 0.4)
-        sheen.addColorStop(0, 'rgba(255,255,255,0.22)')
-        sheen.addColorStop(1, 'rgba(255,255,255,0)')
-        ctx.fillStyle = sheen
-        roundedRect(ctx, -hw, -hh, TILE_W, TILE_H, 5)
-        ctx.fill()
-
         ctx.restore()
       }
 
-      // Cursor glow
+      // Cursor glow during scatter
       if (!collecting && cx > 0) {
         ctx.save()
         const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 55)
@@ -196,6 +190,7 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
     }
 
     rafRef.current = requestAnimationFrame(tick)
+
     return () => {
       cancelAnimationFrame(rafRef.current)
       clearInterval(shuffleInterval)
@@ -203,8 +198,6 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
       window.removeEventListener('touchmove', onTouch)
     }
   }, [])
-
-  if (shufflePhase === 'inactive' || shufflePhase === 'complete') return null
 
   const collecting = shufflePhase === 'collecting' || shufflePhase === 'dealing'
 
@@ -246,4 +239,14 @@ export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
       </div>
     </div>
   )
+}
+
+// ─── Outer wrapper — only mounts ShuffleCanvas when active ───────────────────
+
+export function ShuffleAnimation({ onComplete }: { onComplete: () => void }) {
+  const { shufflePhase } = useUIStore()
+
+  if (shufflePhase === 'inactive' || shufflePhase === 'complete') return null
+
+  return <ShuffleCanvas shufflePhase={shufflePhase} />
 }

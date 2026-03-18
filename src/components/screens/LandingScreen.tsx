@@ -172,7 +172,9 @@ export function LandingScreen() {
               {([
                 { key: 'sevenPairs' as const, label: 'Seven Pairs', zh: '七對子' },
                 { key: 'flowers' as const, label: 'Flowers & Seasons', zh: '花牌' },
+                { key: 'noBonusFan' as const, label: 'No Flowers = +1 Fan', zh: '無花加番' },
                 { key: 'multipleWinners' as const, label: 'Multiple Winners', zh: '多家胡' },
+                { key: 'enableGameLog' as const, label: 'Game Log', zh: '遊戲記錄' },
               ] as const).map(({ key, label, zh }) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-gray-300 text-sm">

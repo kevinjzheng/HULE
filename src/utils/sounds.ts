@@ -153,6 +153,23 @@ export function playTick() {
   beep({ freq: 900, type: 'sine', volume: 0.22, decay: 0.06 })
 }
 
+/** Speak a word via Web Speech API with a happy upbeat tone */
+export function speak(word: string) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return
+  const utt = new SpeechSynthesisUtterance(word)
+  utt.pitch = 1.4
+  utt.rate = 0.9
+  utt.volume = 1
+  window.speechSynthesis.cancel()
+  window.speechSynthesis.speak(utt)
+}
+
+export function sayChow()   { speak('Chow!') }
+export function sayPung()   { speak('Pung!') }
+export function sayKong()   { speak('Kong!') }
+export function sayFlower() { speak('Flower!') }
+export function sayWin()    { speak('Win!') }
+
 /** Tile-clatter burst — shuffle animation */
 export function playShuffling() {
   // White noise bursts through a bandpass filter — sounds like ceramic tiles clacking

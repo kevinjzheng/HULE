@@ -1,5 +1,5 @@
 import type {
-  GameState, GameAction, Player, RoundState, RoundResult, Tile, Meld, PendingClaim, ScoringContext, RuleSettings
+  GameState, GameAction, Player, RoundState, RoundResult, Tile, Meld, PendingClaim, ScoringContext, RuleSettings, GameLogEntry
 } from '../types'
 import { DEFAULT_RULES } from '../types'
 import { createFullDeck, shuffleDeck, dealHands, sortHand } from './deck'
@@ -7,8 +7,8 @@ import {
   isValidWin, getChowOptions, getPungTiles, getKongTiles,
   getClosedKongOptions, getExtendKongOptions,
 } from '../rulesets/hongkong'
-import { calculateScore } from '../rulesets/hongkong/scoring'
-import { tilesEqual } from '../constants/tiles'
+import { calculateScore, checkWinMeetsFan } from '../rulesets/hongkong/scoring'
+import { tilesEqual, tileEnglish } from '../constants/tiles'
 import { removeTiles } from './handAnalyzer'
 
 // ─── Initial state ────────────────────────────────────────────────────────────
@@ -42,6 +42,7 @@ export function createInitialState(
     roundHistory: [],
     maxWindRounds: mode === 'full' ? 4 : 2,
     humanPlayerIndex: 0,
+    gameLog: [],
   }
 }
 
@@ -59,6 +60,7 @@ function createRoundState(roundNumber: number, windRoundIndex: number, dealerInd
     lastDiscard: null,
     lastDiscardBy: null,
     kongPending: false,
+    bonusDrawSeq: 0,
     pendingClaims: [null, null, null, null],
     skipCount: 0,
   }
@@ -95,6 +97,21 @@ function handleStartGame(state: GameState): GameState {
 
 function handleShuffleComplete(state: GameState): GameState {
   return { ...state, phase: 'dealing' }
+}
+
+function log(state: GameState, playerIndex: number, message: string): GameLogEntry[] {
+  if (!state.ruleSettings.enableGameLog) return state.gameLog
+  const now = new Date()
+  const h = now.getHours().toString().padStart(2, '0')
+  const m = now.getMinutes().toString().padStart(2, '0')
+  const s = now.getSeconds().toString().padStart(2, '0')
+  return [...state.gameLog, {
+    id: Date.now() + Math.random(),
+    playerIndex,
+    playerName: state.players[playerIndex]?.name ?? '',
+    message,
+    timestamp: `${h}:${m}:${s}`,
+  }]
 }
 
 function handleDealComplete(state: GameState): GameState {
@@ -153,6 +170,10 @@ function handleDrawTile(state: GameState): GameState {
     return { ...state, phase: 'round_end' }
   }
 
+  // Guard: if the current player already has a drawn tile, don't draw again
+  const currentPlayer = players[round.turnIndex]
+  if (currentPlayer.drawnTile !== null) return state
+
   // Kong replacement: draw from END of main wall (HK mahjong has no dead wall)
   // Normal draw: draw from START of main wall
   const wall = round.wall
@@ -177,8 +198,10 @@ function handleDrawTile(state: GameState): GameState {
       round: {
         ...round,
         wall: mainWall,
-        kongPending: true,  // trigger another draw
+        kongPending: true,
+        bonusDrawSeq: round.bonusDrawSeq + 1,  // always changes → re-fires effect
       },
+      gameLog: log(state, ti, 'drew a flower/season tile'),
     }
   }
 
@@ -198,6 +221,7 @@ function handleDrawTile(state: GameState): GameState {
       lastDiscardBy: null,  // clear so isZimo is correctly true for self-draw wins
     },
     phase: ti === state.humanPlayerIndex ? 'awaiting_discard' : 'bot_turn',
+    gameLog: ti === state.humanPlayerIndex ? log(state, ti, 'drew a tile') : state.gameLog,
   }
 }
 
@@ -220,7 +244,9 @@ function handleDiscard(state: GameState, action: GameAction): GameState {
   // Compute pending claims for all other players
   const pendingClaims: (PendingClaim | null)[] = players.map((p, i) => {
     if (i === ti) return null
-    const canWin = isValidWin(p.hand, p.melds, tile)
+    const canWin = isValidWin(p.hand, p.melds, tile) &&
+      checkWinMeetsFan(p.hand, p.melds, tile, false, p, round.prevailingWind,
+        round.wall.length === 0, i, ti, players, state.ruleSettings)
     const canPung = !!(getPungTiles(p.hand, tile))
     const canKong = !!(getKongTiles(p.hand, tile))
     // Chow: only player to discarder's left
@@ -246,6 +272,7 @@ function handleDiscard(state: GameState, action: GameAction): GameState {
       turnIndex: hasClaims ? round.turnIndex : nextTurn,
     },
     phase: hasClaims ? 'awaiting_action' : 'playing',
+    gameLog: log(state, ti, `discarded ${tileEnglish(tile)}`),
   }
 }
 
@@ -279,6 +306,7 @@ function handleClaimChow(state: GameState, action: GameAction): GameState {
       pendingClaims: [null, null, null, null],
     },
     phase: pi === state.humanPlayerIndex ? 'awaiting_discard' : 'bot_turn',
+    gameLog: log(state, pi, `chowed ${tileEnglish(lastDiscard)}`),
   }
 }
 
@@ -311,6 +339,7 @@ function handleClaimPung(state: GameState, action: GameAction): GameState {
       pendingClaims: [null, null, null, null],
     },
     phase: pi === state.humanPlayerIndex ? 'awaiting_discard' : 'bot_turn',
+    gameLog: log(state, pi, `ponged ${tileEnglish(lastDiscard)}`),
   }
 }
 
@@ -344,6 +373,7 @@ function handleClaimKong(state: GameState, action: GameAction): GameState {
       kongPending: true,
     },
     phase: 'playing',
+    gameLog: log(state, pi, `konged ${tileEnglish(lastDiscard)}`),
   }
 }
 
@@ -366,6 +396,7 @@ function handleClosedKong(state: GameState, action: GameAction): GameState {
     players: updatedPlayers,
     round: { ...round, kongPending: true, turnIndex: pi },
     phase: 'playing',
+    gameLog: log(state, pi, `declared closed kong`),
   }
 }
 
@@ -392,6 +423,7 @@ function handleExtendKong(state: GameState, action: GameAction): GameState {
     players: updatedPlayers,
     round: { ...round, kongPending: true, turnIndex: pi },
     phase: 'playing',
+    gameLog: log(state, pi, `extended kong with ${tileEnglish(tile)}`),
   }
 }
 
@@ -429,7 +461,12 @@ function handleDeclareWin(state: GameState, action: GameAction): GameState {
         ruleSettings: state.ruleSettings,
       }
 
-      const breakdown = calculateScore(player.hand, player.melds, ctx)
+      // For self-draw: player.hand already contains the drawn tile.
+      // calculateScore adds winTile internally, so filter it out to avoid counting it twice.
+      const handForScoring = isZimo
+        ? player.hand.filter(t => t.id !== winTile.id)
+        : player.hand
+      const breakdown = calculateScore(handForScoring, player.melds, ctx)
 
       for (let i = 0; i < 4; i++) combinedDeltas[i] += breakdown.payments[i]
       if (!first) first = breakdown
@@ -467,12 +504,16 @@ function handleDeclareWin(state: GameState, action: GameAction): GameState {
     round: { ...round },
     roundHistory: [...state.roundHistory, result],
     phase: 'scoring',
+    gameLog: log(state, primaryWinner, `won the hand! (${primaryBreakdown.totalFan} fan)`),
   }
 }
 
 function handleSkipClaim(state: GameState, action: GameAction): GameState {
   const pi = action.playerIndex!
   const { round } = state
+
+  // Guard: only process if this player actually has a pending claim
+  if (round.pendingClaims[pi] === null) return state
 
   const newPendingClaims = round.pendingClaims.map((c, i) => i === pi ? null : c)
   const newSkipCount = round.skipCount + 1
@@ -587,11 +628,15 @@ function sortChow(tiles: Tile[]): Tile[] {
 export function computePendingClaims(
   players: Player[],
   discardedTile: Tile,
-  discardedBy: number
+  discardedBy: number,
+  state: GameState
 ): (PendingClaim | null)[] {
+  const { round, ruleSettings } = state
   return players.map((p, i) => {
     if (i === discardedBy) return null
-    const canWin = isValidWin(p.hand, p.melds, discardedTile)
+    const canWin = isValidWin(p.hand, p.melds, discardedTile) &&
+      checkWinMeetsFan(p.hand, p.melds, discardedTile, false, p, round.prevailingWind,
+        round.wall.length === 0, i, discardedBy, players, ruleSettings)
     const canPung = !!getPungTiles(p.hand, discardedTile)
     const canKong = !!getKongTiles(p.hand, discardedTile)
     const isLeft = (discardedBy + 1) % 4 === i

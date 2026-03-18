@@ -2,14 +2,14 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { useUIStore } from '../store/uiStore'
 import { botSelectDiscard, botDecideClaim, botDecideAfterDraw } from '../ai/botPlayer'
-import { playDraw, playDiscard, playActionAvailable, playWin, playKong } from '../utils/sounds'
+import { playDraw, playDiscard, playActionAvailable, playWin, playKong, sayWin, sayKong, sayPung, sayChow, sayFlower } from '../utils/sounds'
 
 const BOT_THINK_MS = 900
 const BOT_CLAIM_MS = 700
 
 export function useGameEngine() {
   const { state, dispatch } = useGameStore()
-  const { setShufflePhase, setShowScoreModal, setShowWinAnimation, setWinnerIndex } = useUIStore()
+  const { setShufflePhase, setShowScoreModal, setShowWinAnimation, setShowWinningHand, setWinnerIndex } = useUIStore()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearTimer = () => {
@@ -50,7 +50,9 @@ export function useGameEngine() {
 
       case 'playing': {
         schedule(() => {
-          if (round.turnIndex === humanPlayerIndex) playDraw()
+          const latest = useGameStoreSnapshot()
+          if (latest.phase !== 'playing') return
+          if (latest.round.turnIndex === humanPlayerIndex) playDraw()
           dispatch({ type: 'DRAW_TILE' })
         }, 300)
         break
@@ -60,7 +62,7 @@ export function useGameEngine() {
         const ti = round.turnIndex
         if (players[ti]?.type !== 'bot') break
 
-        playDraw()
+        // No draw sound for bot turns — human only hears their own draw
         schedule(() => {
           const actionAfterDraw = botDecideAfterDraw(ti, state)
           if (actionAfterDraw) {
@@ -69,8 +71,10 @@ export function useGameEngine() {
               setWinnerIndex(ti)
               setShowWinAnimation(true)
               playWin()
+              sayWin()
             } else if (actionAfterDraw.type === 'DECLARE_CLOSED_KONG' || actionAfterDraw.type === 'EXTEND_KONG') {
               playKong()
+              sayKong()
             }
             return
           }
@@ -95,7 +99,13 @@ export function useGameEngine() {
         if (pendingBotIndices.length === 0) break
 
         const humanHasClaim = round.pendingClaims[humanPlayerIndex] !== null
-        const delay = humanHasClaim ? BOT_CLAIM_MS * 2 : BOT_CLAIM_MS
+        const anyCanWin = players.some((_, i) => round.pendingClaims[i]?.canWin)
+        // Give extra time when a win is on the table so human can react
+        const delay = anyCanWin
+          ? BOT_CLAIM_MS * 4
+          : humanHasClaim
+            ? BOT_CLAIM_MS * 2
+            : BOT_CLAIM_MS
 
         schedule(() => {
           const latest = useGameStoreSnapshot()
@@ -121,6 +131,7 @@ export function useGameEngine() {
               setWinnerIndex(winners[0])
               setShowWinAnimation(true)
               playWin()
+              sayWin()
               return
             } else {
               // Only first bot winner wins
@@ -129,18 +140,34 @@ export function useGameEngine() {
               setWinnerIndex(i)
               setShowWinAnimation(true)
               playWin()
+              sayWin()
               return
             }
           }
 
-          // No wins — check other claims
+          // Non-win bot actions: only allowed when no player (including human) still has canWin
+          const anyStillCanWin = latest.players.some((_, i) => latest.round.pendingClaims[i]?.canWin)
+          if (anyStillCanWin) {
+            // A player still has win opportunity — don't let bots pung/chow yet.
+            // Skip all bot non-win claims; the human must act on the win or skip it.
+            for (const i of pendingBotIndices) {
+              if (latest.round.pendingClaims[i] !== null) {
+                dispatch({ type: 'SKIP_CLAIM', playerIndex: i })
+              }
+            }
+            return
+          }
+
+          // No wins remain — check other claims
           let claimed = false
           for (const i of pendingBotIndices) {
             const claim = latest.round.pendingClaims[i]
             if (!claim) continue
             const action = botDecideClaim(i, latest, latest.round.lastDiscard!, latest.round.lastDiscardBy!)
             if (action) {
-              if (action.type === 'CLAIM_KONG') playKong()
+              if (action.type === 'CLAIM_KONG') { playKong(); sayKong() }
+              else if (action.type === 'CLAIM_PUNG') sayPung()
+              else if (action.type === 'CLAIM_CHOW') sayChow()
               dispatch(action)
               claimed = true
               break
@@ -164,7 +191,12 @@ export function useGameEngine() {
       }
 
       case 'scoring': {
-        schedule(() => setShowScoreModal(true), 600)
+        // Show winning hand for 5s, then reveal score modal
+        setShowWinningHand(true)
+        schedule(() => {
+          setShowWinningHand(false)
+          setShowScoreModal(true)
+        }, 30000)
         break
       }
     }
@@ -177,9 +209,16 @@ export function useGameEngine() {
     state.round.roundNumber,
     state.roundHistory.length,
     state.round.kongPending,  // re-trigger when bonus tile drawn (phase stays 'playing')
+    state.round.bonusDrawSeq,  // re-trigger on each bonus tile draw
   ])
 
   useEffect(() => () => clearTimer(), [])
+
+  // Announce flower/season draws
+  const bonusDrawSeq = state.round.bonusDrawSeq
+  useEffect(() => {
+    if (bonusDrawSeq > 0) sayFlower()
+  }, [bonusDrawSeq])
 }
 
 function useGameStoreSnapshot() {

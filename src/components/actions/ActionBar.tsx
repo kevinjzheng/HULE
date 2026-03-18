@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useUIStore } from '../../store/uiStore'
-import { isValidWin } from '../../rulesets/hongkong'
+import { isValidWin, checkWinMeetsFan } from '../../rulesets/hongkong'
 import { getClosedKongOptions, getExtendKongOptions } from '../../rulesets/hongkong/winConditions'
 import { cn } from '../../utils/cn'
 import { TileComponent } from '../tiles/TileComponent'
 import type { Tile } from '../../types'
-import { playDiscard, playWin, playKong } from '../../utils/sounds'
+import { playDiscard, playWin, playKong, sayChow, sayPung, sayKong, sayWin } from '../../utils/sounds'
 import { TurnTimer } from '../board/TurnTimer'
 
 export function ActionBar() {
@@ -28,13 +28,16 @@ export function ActionBar() {
       ? getExtendKongOptions(human.hand, human.melds, human.drawnTile)
       : []
 
-    const canWin = human.drawnTile
-      ? isValidWin(
-          human.hand.filter(t => t.id !== human.drawnTile!.id),
-          human.melds,
-          human.drawnTile
-        )
-      : false
+    const canWin = (() => {
+      if (!human.drawnTile) return false
+      const handWithoutDraw = human.hand.filter(t => t.id !== human.drawnTile!.id)
+      if (!isValidWin(handWithoutDraw, human.melds, human.drawnTile)) return false
+      return checkWinMeetsFan(
+        handWithoutDraw, human.melds, human.drawnTile, true, human,
+        round.prevailingWind, round.wall.length === 0,
+        humanPlayerIndex, null, players, ruleSettings
+      )
+    })()
 
     return (
       <>
@@ -54,6 +57,7 @@ export function ActionBar() {
               color="bg-yellow-500 hover:bg-yellow-400 animate-pulse"
               onClick={() => {
                 playWin()
+                sayWin()
                 setWinnerIndex(humanPlayerIndex)
                 setShowWinAnimation(true)
                 dispatch({ type: 'DECLARE_WIN', playerIndex: humanPlayerIndex })
@@ -111,6 +115,7 @@ export function ActionBar() {
 
     const handleWin = () => {
       playWin()
+      sayWin()
       setWinnerIndex(humanPlayerIndex)
       setShowWinAnimation(true)
 
@@ -141,6 +146,7 @@ export function ActionBar() {
             color="bg-purple-600 hover:bg-purple-500"
             onClick={() => {
               playKong()
+              sayKong()
               dispatch({ type: 'CLAIM_KONG', playerIndex: humanPlayerIndex })
             }}
           />
@@ -149,7 +155,10 @@ export function ActionBar() {
           <ActionButton
             label="Pung 碰"
             color="bg-blue-600 hover:bg-blue-500"
-            onClick={() => dispatch({ type: 'CLAIM_PUNG', playerIndex: humanPlayerIndex })}
+            onClick={() => {
+              sayPung()
+              dispatch({ type: 'CLAIM_PUNG', playerIndex: humanPlayerIndex })
+            }}
           />
         )}
         {chowOpts.length > 0 && !showChowOptions && (
@@ -164,6 +173,7 @@ export function ActionBar() {
             key={i}
             className="flex gap-0.5 items-center bg-green-700 hover:bg-green-600 rounded px-2 py-1"
             onClick={() => {
+              sayChow()
               dispatch({
                 type: 'CLAIM_CHOW',
                 playerIndex: humanPlayerIndex,

@@ -2,7 +2,9 @@ import React from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useUIStore } from '../../store/uiStore'
 import { WIND_CHARS, tileUnicode, tileKey } from '../../constants/tiles'
-import { TileComponent } from '../tiles/TileComponent'
+import { getTileImage } from '../../constants/tileImages'
+
+import { GameLog } from './GameLog'
 import { cn } from '../../utils/cn'
 import type { Tile } from '../../types'
 
@@ -17,21 +19,30 @@ function DiscardTile({ tile, isLast }: { tile: Tile; isLast?: boolean }) {
   const { hoveredTileKey, setHoveredTileKey } = useUIStore()
   const key = tileKey(tile)
   const isHovered = hoveredTileKey === key
+  const imgSrc = getTileImage(key)
 
   return (
     <div
       className={cn(
-        'inline-flex items-center justify-center rounded',
-        'bg-tile-bg border border-tile-border select-none flex-shrink-0',
-        'w-[4rem] h-[5.6rem]',
-        isLast && 'ring-1 ring-red-400',
+        'inline-flex items-center justify-center rounded overflow-hidden',
+        'select-none flex-shrink-0',
+        'w-[2.5rem] h-[3.4rem]',
+        isLast && 'ring-2 ring-red-400',
         isHovered && 'ring-2 ring-sky-400 brightness-125',
       )}
-      style={{ fontFamily: '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif' }}
       onMouseEnter={() => setHoveredTileKey(key)}
       onMouseLeave={() => setHoveredTileKey(null)}
     >
-      <span className="text-[2.6rem] leading-none">{tileUnicode(tile)}</span>
+      {imgSrc ? (
+        <img src={imgSrc} alt="" draggable={false} className="w-full h-full object-contain" />
+      ) : (
+        <span
+          className="text-[2.6rem] leading-none"
+          style={{ fontFamily: '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif' }}
+        >
+          {tileUnicode(tile)}
+        </span>
+      )}
     </div>
   )
 }
@@ -47,15 +58,20 @@ function DiscardZone({
   label: string
   className?: string
 }) {
+  const visible = discards.slice(-10)
+  const hiddenCount = discards.length - visible.length
   return (
     <div className={cn('flex flex-col gap-1', className)}>
       <span className="text-white/40 text-[10px] text-center tracking-widest truncate">{label}</span>
+      {hiddenCount > 0 && (
+        <span className="text-white/30 text-[9px] text-center">+{hiddenCount} more</span>
+      )}
       <div className="flex flex-wrap gap-0.5 justify-center">
-        {discards.map((t, i) => (
+        {visible.map((t, i) => (
           <DiscardTile
             key={t.id}
             tile={t}
-            isLast={i === discards.length - 1 && t.id === lastDiscardId}
+            isLast={i === visible.length - 1 && t.id === lastDiscardId}
           />
         ))}
         {discards.length === 0 && (
@@ -81,30 +97,32 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
     <div className="flex flex-col h-full min-h-0 gap-1 py-1">
 
       {/* ── North discards (top zone) ── */}
-      <div className="flex-shrink-0 px-2">
-        <DiscardZone
-          discards={players[topIdx].discards}
-          lastDiscardId={lastDiscardId}
-          label={players[topIdx].name}
-          className="items-center"
-        />
+      <div className="flex-shrink-0 flex justify-center">
+        <div className="max-w-[55%] w-full">
+          <DiscardZone
+            discards={players[topIdx].discards}
+            lastDiscardId={lastDiscardId}
+            label={players[topIdx].name}
+            className="items-center"
+          />
+        </div>
       </div>
 
       {/* ── Middle row: West | Info+Score | East ── */}
       <div className="flex flex-1 min-h-0 gap-1 items-center px-1">
 
-        {/* West discards */}
-        <div className="flex-shrink-0 w-44">
+        {/* West discards — flex-1, aligned to inner (right) edge so tiles crowd center */}
+        <div className="flex-1 min-w-0 flex flex-col items-end pr-2">
           <DiscardZone
             discards={players[leftIdx].discards}
             lastDiscardId={lastDiscardId}
             label={players[leftIdx].name}
-            className="items-center"
+            className="items-end"
           />
         </div>
 
         {/* ── Center panel ── */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-1 min-w-0 self-center">
+        <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1.5 py-1 w-[13rem] self-center">
 
           {/* Prevailing wind + round */}
           <div className="text-center">
@@ -128,22 +146,22 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
           </div>
 
           {/* ── Score Leaderboard — compact ── */}
-          <div className="w-full max-w-[9rem] bg-black/50 rounded-lg border border-white/10 overflow-hidden">
+          <div className="w-full max-w-[12rem] bg-black/50 rounded-lg border border-white/10 overflow-hidden">
             {ranked.map((p, rank) => (
               <div
                 key={p.id}
                 className={cn(
-                  'flex items-center gap-1 px-1.5 py-0.5',
+                  'flex items-center gap-1 px-2 py-1',
                   rank === 0 && 'bg-yellow-400/10',
                   state.round.turnIndex === p.idx && 'bg-white/5',
                 )}
               >
-                <span className="text-[10px] leading-none text-white/40 w-3">
+                <span className="text-xs leading-none text-white/40 w-3">
                   {rank + 1}.
                 </span>
                 <span
                   className={cn(
-                    'text-[10px] font-semibold flex-1 truncate',
+                    'text-xs font-semibold flex-1 truncate',
                     rank === 0 ? 'text-yellow-300' : 'text-white/70',
                   )}
                 >
@@ -152,7 +170,7 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
                 </span>
                 <span
                   className={cn(
-                    'text-[10px] font-bold tabular-nums',
+                    'text-xs font-bold tabular-nums',
                     rank === 0 ? 'text-yellow-300' : 'text-white/80',
                   )}
                 >
@@ -162,34 +180,35 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
             ))}
           </div>
 
-          {/* Last discard highlight */}
-          {round.lastDiscard && (
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-white/30 text-[9px] tracking-widest">LAST</span>
-              <TileComponent tile={round.lastDiscard} highlight />
+          {/* Inline game log — shown when enabled in house rules */}
+          {state.ruleSettings.enableGameLog && (
+            <div className="w-full max-w-[12rem]">
+              <GameLog />
             </div>
           )}
         </div>
 
-        {/* East discards */}
-        <div className="flex-shrink-0 w-44">
+        {/* East discards — flex-1, aligned to inner (left) edge so tiles crowd center */}
+        <div className="flex-1 min-w-0 flex flex-col items-start pl-2">
           <DiscardZone
             discards={players[rightIdx].discards}
             lastDiscardId={lastDiscardId}
             label={players[rightIdx].name}
-            className="items-center"
+            className="items-start"
           />
         </div>
       </div>
 
       {/* ── South discards (bottom zone) ── */}
-      <div className="flex-shrink-0 px-2">
-        <DiscardZone
-          discards={players[bottomIdx].discards}
-          lastDiscardId={lastDiscardId}
-          label={players[bottomIdx].name}
-          className="items-center"
-        />
+      <div className="flex-shrink-0 flex justify-center">
+        <div className="max-w-[55%] w-full">
+          <DiscardZone
+            discards={players[bottomIdx].discards}
+            lastDiscardId={lastDiscardId}
+            label={players[bottomIdx].name}
+            className="items-center"
+          />
+        </div>
       </div>
 
     </div>

@@ -14,8 +14,18 @@ interface PlayerAreaProps {
   position: Position
 }
 
+// Sideways tile dimensions: landscape DOM so that after rotate-90 the layout
+// height equals the visual tile height (no extra gap between tiles).
+// portrait: w-[4.6rem] h-[6.2rem]  ← full-size reference
+// sideways: width = portrait H, height = portrait W
+//   → after rotate-90: visual 4.6rem wide × 6.2rem tall
+//   → flex-col spacing per tile: 4.6rem (DOM height) + gap-1
+// We use a slightly smaller value so 13 tiles fit on typical screens (≥900px viewport).
+const SIDEWAYS_SIZE      = { width: '5rem',   height: '3.6rem' } as const
+const SIDEWAYS_MELD_SIZE = { width: '6.2rem', height: '4.4rem' } as const
+
 export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
-  const { state, dispatch } = useGameStore()
+  const { state } = useGameStore()
   const { selectedTileId, setSelectedTileId } = useUIStore()
 
   const isHuman = playerIndex === state.humanPlayerIndex
@@ -28,49 +38,117 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
     position === 'right' ? '-rotate-90' :
     ''
 
+  const badge = (
+    <div
+      className={cn(
+        'flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0',
+        isTurn
+          ? 'bg-yellow-400 text-yellow-900 shadow-lg'
+          : 'bg-black/50 text-white/90 border border-white/10',
+        isVertical && 'flex-col gap-0 px-1 py-1',
+      )}
+    >
+      <span className="leading-none">{windChar}</span>
+      <span className={cn('truncate', isVertical ? 'max-w-[3.5rem] text-[10px]' : 'max-w-[7rem]')}>
+        {player.name}
+      </span>
+      {player.isDealer && (
+        <span className={isTurn ? 'text-red-700' : 'text-red-400'}>莊</span>
+      )}
+    </div>
+  )
+
+  // ── Vertical (left / right) players ──────────────────────────────────────
+  if (isVertical) {
+    // Hand tiles: sideways landscape DOM + rotate so visual portrait fills correctly.
+    // overflow-hidden keeps tiles within the viewport height without a scrollbar.
+    const handColumn = (
+      <div
+        className="flex flex-col gap-1 overflow-hidden flex-shrink-0"
+        style={{ maxHeight: 'calc(100vh - 14rem)' }}
+      >
+        {player.hand.map((tile) => (
+          <TileBack
+            key={tile.id}
+            medium
+            className={cn('flex-shrink-0', tileRotation)}
+            style={SIDEWAYS_SIZE}
+          />
+        ))}
+        {player.drawnTile && !player.hand.some(t => t.id === player.drawnTile?.id) && (
+          <TileBack
+            medium
+            className={cn('flex-shrink-0 ring-1 ring-yellow-400/60', tileRotation)}
+            style={SIDEWAYS_SIZE}
+          />
+        )}
+      </div>
+    )
+
+    // Melds + bonus: also sideways, in a column — use larger size than hand tiles
+    const meldColumn = (player.melds.length > 0 || player.bonusTiles.length > 0) ? (
+      <div className="flex flex-col gap-2 items-center flex-shrink-0">
+        {player.melds.map((meld, mi) => (
+          <div key={mi} className="flex flex-col gap-1">
+            {meld.tiles.map((t, ti) => (
+              <TileComponent
+                key={t.id}
+                tile={t}
+                faceDown={meld.concealed && meld.type === 'kong' && ti === 0}
+                className={tileRotation}
+                style={SIDEWAYS_MELD_SIZE}
+              />
+            ))}
+          </div>
+        ))}
+        {player.bonusTiles.map((t) => (
+          <TileComponent
+            key={t.id}
+            tile={t}
+            className={tileRotation}
+            style={SIDEWAYS_MELD_SIZE}
+          />
+        ))}
+      </div>
+    ) : null
+
+    // left player:  [hand outer] [meld inner→center] — flex-row [hand, meld]
+    // right player: [meld inner←center] [hand outer] — flex-row-reverse [hand, meld]
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        {badge}
+        <div className={cn(
+          'flex items-start gap-2',
+          position === 'right' && 'flex-row-reverse',
+        )}>
+          {handColumn}
+          {meldColumn}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Top / Bottom players ──────────────────────────────────────────────────
   return (
     <div
       className={cn(
         'flex gap-1.5',
         position === 'bottom' && 'flex-col items-center',
         position === 'top' && 'flex-col-reverse items-center',
-        isVertical && 'flex-col items-center',
       )}
     >
-      {/* ── Player badge ── */}
-      <div
-        className={cn(
-          'flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0',
-          isTurn
-            ? 'bg-yellow-400 text-yellow-900 shadow-lg'
-            : 'bg-black/50 text-white/90 border border-white/10',
-          isVertical && 'flex-col gap-0 px-1 py-1',
-        )}
-      >
-        <span className="leading-none">{windChar}</span>
-        <span className={cn('truncate', isVertical ? 'max-w-[3.5rem] text-[10px]' : 'max-w-[7rem]')}>
-          {player.name}
-        </span>
-        {player.isDealer && (
-          <span className={isTurn ? 'text-red-700' : 'text-red-400'}>莊</span>
-        )}
-      </div>
+      {badge}
 
       {/* ── Exposed melds ── */}
       {player.melds.length > 0 && (
-        <div className={cn(
-          'flex gap-0.5 flex-wrap',
-          isVertical ? 'flex-col items-center' : 'justify-center'
-        )}>
+        <div className="flex gap-0.5 flex-wrap justify-center">
           {player.melds.map((meld, mi) => (
-            <div key={mi} className={cn('flex gap-0.5', isVertical && 'flex-col')}>
+            <div key={mi} className="flex gap-0.5">
               {meld.tiles.map((t, ti) => (
                 <TileComponent
                   key={t.id}
                   tile={t}
                   faceDown={meld.concealed && meld.type === 'kong' && ti === 0}
-                  small={position !== 'bottom'}
-                  className={isVertical ? tileRotation : ''}
                 />
               ))}
             </div>
@@ -80,34 +158,21 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
 
       {/* ── Bonus tiles ── */}
       {player.bonusTiles.length > 0 && (
-        <div className={cn(
-          'flex gap-0.5 flex-wrap',
-          isVertical ? 'flex-col items-center' : 'justify-center'
-        )}>
+        <div className="flex gap-0.5 flex-wrap justify-center">
           {player.bonusTiles.map((t) => (
-            <TileComponent
-              key={t.id}
-              tile={t}
-              small={position !== 'bottom'}
-              className={isVertical ? tileRotation : ''}
-            />
+            <TileComponent key={t.id} tile={t} />
           ))}
         </div>
       )}
 
       {/* ── Hand tiles ── */}
-      {isVertical ? (
-        /* Side players: compact overlapping stack */
-        <div className="relative flex flex-col -space-y-9 overflow-hidden" style={{ maxHeight: '16rem' }}>
+      {!isHuman ? (
+        <div className="flex gap-0.5 flex-wrap justify-center">
           {player.hand.map((tile) => (
-            <TileBack key={tile.id} small className={cn('flex-shrink-0', tileRotation)} />
+            <TileBack key={tile.id} medium />
           ))}
-          {player.drawnTile && !player.hand.some(t => t.id === player.drawnTile?.id) && (
-            <TileBack small className={cn('flex-shrink-0 mt-2 ring-1 ring-yellow-400/60', tileRotation)} />
-          )}
         </div>
-      ) : isHuman ? (
-        /* Human: face-up, clickable */
+      ) : (
         <div className="flex gap-1 flex-wrap justify-center">
           {player.hand.map((tile) => (
             <TileComponent
@@ -138,13 +203,6 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
                 />
               </>
             )}
-        </div>
-      ) : (
-        /* Top bot: face-down row */
-        <div className="flex gap-0.5">
-          {player.hand.map((tile) => (
-            <TileBack key={tile.id} small />
-          ))}
         </div>
       )}
     </div>

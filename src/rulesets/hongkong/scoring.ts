@@ -1,38 +1,44 @@
-import type { Tile, Meld, Fan, FanBreakdown, ScoringContext, Player } from '../../types'
+import type { Tile, Meld, Fan, FanBreakdown, ScoringContext, Player, RuleSettings, SeatWind } from '../../types'
 import { tilesEqual, isDragon, isWind, isTerminal, isHonor, seatToWindValue } from '../../constants/tiles'
-import { canFormStandardHand, isSevenPairs, isThirteenOrphans } from './winConditions'
+import { isSevenPairs, isThirteenOrphans } from './winConditions'
 import { groupTiles } from '../../engine/handAnalyzer'
 
 // ─── Fan definitions ──────────────────────────────────────────────────────────
 
-const LIMIT_FAN = 10
+const LIMIT_FAN = 13
 
 const FAN_TABLE: Fan[] = [
   // Limit hands
-  { id: 'thirteen_orphans', nameEn: 'Thirteen Orphans', nameZh: '十三么', fan: LIMIT_FAN, isLimit: true },
-  { id: 'nine_gates', nameEn: 'Nine Gates', nameZh: '九蓮寶燈', fan: LIMIT_FAN, isLimit: true },
-  { id: 'four_concealed_pungs', nameEn: 'Four Concealed Pungs', nameZh: '四暗刻', fan: LIMIT_FAN, isLimit: true },
-  { id: 'all_honors', nameEn: 'All Honors', nameZh: '字一色', fan: LIMIT_FAN, isLimit: true },
-  { id: 'all_terminals', nameEn: 'All Terminals', nameZh: '么九刻', fan: LIMIT_FAN, isLimit: true },
+  { id: 'thirteen_orphans',     nameEn: 'Thirteen Orphans',      nameZh: '十三么',   fan: LIMIT_FAN, isLimit: true },
+  { id: 'nine_gates',           nameEn: 'Nine Gates',            nameZh: '九蓮寶燈', fan: LIMIT_FAN, isLimit: true },
+  { id: 'four_concealed_pungs', nameEn: 'Four Concealed Pungs',  nameZh: '四暗刻',   fan: LIMIT_FAN, isLimit: true },
+  { id: 'all_honors',           nameEn: 'All Honors',            nameZh: '字一色',   fan: LIMIT_FAN, isLimit: true },
+  { id: 'all_terminals',        nameEn: 'All Terminals',         nameZh: '清么九',   fan: LIMIT_FAN, isLimit: true },
+  { id: 'big_four_winds',       nameEn: 'Big Four Winds',        nameZh: '大四喜',   fan: LIMIT_FAN, isLimit: true },
+  { id: 'big_three_dragons',    nameEn: 'Big Three Dragons',     nameZh: '大三元',   fan: LIMIT_FAN, isLimit: true },
+  { id: 'four_kongs',           nameEn: 'Four Kongs',            nameZh: '四槓',     fan: LIMIT_FAN, isLimit: true },
   // High value
-  { id: 'full_flush', nameEn: 'Full Flush', nameZh: '清一色', fan: 7 },
-  { id: 'seven_pairs', nameEn: 'Seven Pairs', nameZh: '七對子', fan: 4 },
-  { id: 'all_pungs', nameEn: 'All Pungs', nameZh: '對對胡', fan: 3 },
-  { id: 'mixed_flush', nameEn: 'Half Flush', nameZh: '混一色', fan: 3 },
+  { id: 'full_flush',           nameEn: 'Full Flush',            nameZh: '清一色',   fan: 7 },
+  { id: 'seven_pairs',          nameEn: 'Seven Pairs',           nameZh: '七對子',   fan: 4 },
+  { id: 'all_pungs',            nameEn: 'All Pungs',             nameZh: '對對胡',   fan: 3 },
+  { id: 'mixed_flush',          nameEn: 'Half Flush',            nameZh: '混一色',   fan: 3 },
+  { id: 'small_three_dragons',  nameEn: 'Small Three Dragons',   nameZh: '小三元',   fan: 3 },
+  { id: 'small_four_winds',     nameEn: 'Small Four Winds',      nameZh: '小四喜',   fan: 3 },
   // Medium
-  { id: 'all_chows', nameEn: 'All Chows', nameZh: '平胡', fan: 1 },
-  { id: 'concealed_self_draw', nameEn: 'Concealed Self Draw', nameZh: '門前清自摸', fan: 1 },
-  { id: 'self_draw', nameEn: 'Self Draw', nameZh: '自摸', fan: 1 },
-  { id: 'all_concealed', nameEn: 'All Concealed', nameZh: '門前清', fan: 1 },
-  { id: 'dragon_pung', nameEn: 'Dragon Pung/Kong', nameZh: '箭刻', fan: 1 },  // per dragon
-  { id: 'seat_wind_pung', nameEn: 'Seat Wind Pung', nameZh: '門風', fan: 1 },
-  { id: 'prevailing_wind_pung', nameEn: 'Prevailing Wind Pung', nameZh: '圈風', fan: 1 },
-  { id: 'last_tile_draw', nameEn: 'Last Tile Draw', nameZh: '海底摸月', fan: 1 },
-  { id: 'last_tile_claim', nameEn: 'Last Tile Claim', nameZh: '河底撈魚', fan: 1 },
-  { id: 'win_on_kong', nameEn: 'Win on Kong', nameZh: '嶺上開花', fan: 1 },
-  { id: 'robbing_kong', nameEn: 'Robbing Kong', nameZh: '搶槓', fan: 1 },
-  { id: 'mixed_terminals', nameEn: 'Mixed Terminals', nameZh: '混么九', fan: 2 },
-  { id: 'flower_bonus', nameEn: 'Flower/Season', nameZh: '花牌', fan: 1 },  // per tile
+  { id: 'mixed_terminals',      nameEn: 'Mixed Terminals',       nameZh: '混么九',   fan: 2 },
+  { id: 'all_chows',            nameEn: 'All Chows',             nameZh: '平胡',     fan: 1 },
+  { id: 'concealed_self_draw',  nameEn: 'Concealed Self Draw',   nameZh: '門前清自摸', fan: 1 },
+  { id: 'self_draw',            nameEn: 'Self Draw',             nameZh: '自摸',     fan: 1 },
+  { id: 'all_concealed',        nameEn: 'All Concealed',         nameZh: '門前清',   fan: 1 },
+  { id: 'dragon_pung',          nameEn: 'Dragon Pung/Kong',      nameZh: '箭刻',     fan: 1 },
+  { id: 'seat_wind_pung',       nameEn: 'Seat Wind Pung',        nameZh: '門風',     fan: 1 },
+  { id: 'prevailing_wind_pung', nameEn: 'Prevailing Wind Pung',  nameZh: '圈風',     fan: 1 },
+  { id: 'last_tile_draw',       nameEn: 'Last Tile Draw',        nameZh: '海底摸月', fan: 1 },
+  { id: 'last_tile_claim',      nameEn: 'Last Tile Claim',       nameZh: '河底撈魚', fan: 1 },
+  { id: 'win_on_kong',          nameEn: 'Win on Kong',           nameZh: '嶺上開花', fan: 1 },
+  { id: 'robbing_kong',         nameEn: 'Robbing Kong',          nameZh: '搶槓',     fan: 1 },
+  { id: 'flower_bonus',         nameEn: 'Flower/Season',         nameZh: '花牌',     fan: 1 },
+  { id: 'no_bonus',             nameEn: 'No Flowers/Seasons',    nameZh: '無花',     fan: 1 },
 ]
 
 function getFan(id: string): Fan {
@@ -47,35 +53,37 @@ export function calculateScore(
   ctx: ScoringContext
 ): FanBreakdown {
   const allConcealed = [...hand, ctx.winTile]
-  const fans: Fan[] = []
-
   const isConcealed = melds.every(m => m.concealed)
 
-  // ── Limit hands first ──
+  // ── Limit hands (structure-independent) ──
   if (isThirteenOrphans(allConcealed, melds)) {
-    fans.push(getFan('thirteen_orphans'))
-    return finalize(fans, ctx)
+    return finalize([getFan('thirteen_orphans')], ctx)
   }
   if (isNineGates(allConcealed, melds)) {
-    fans.push(getFan('nine_gates'))
-    return finalize(fans, ctx)
+    return finalize([getFan('nine_gates')], ctx)
   }
   if (isFourConcealedPungs(allConcealed, melds)) {
-    fans.push(getFan('four_concealed_pungs'))
-    return finalize(fans, ctx)
+    return finalize([getFan('four_concealed_pungs')], ctx)
   }
   if (isAllHonors(allConcealed, melds)) {
-    fans.push(getFan('all_honors'))
-    return finalize(fans, ctx)
+    return finalize([getFan('all_honors')], ctx)
   }
   if (isAllTerminalsHand(allConcealed, melds)) {
-    fans.push(getFan('all_terminals'))
-    return finalize(fans, ctx)
+    return finalize([getFan('all_terminals')], ctx)
+  }
+  if (isBigFourWinds(allConcealed, melds)) {
+    return finalize([getFan('big_four_winds')], ctx)
+  }
+  if (isBigThreeDragons(allConcealed, melds)) {
+    return finalize([getFan('big_three_dragons')], ctx)
+  }
+  if (isFourKongs(melds)) {
+    return finalize([getFan('four_kongs')], ctx)
   }
 
   // ── Seven pairs ──
   if (isSevenPairs(allConcealed, melds) && ctx.ruleSettings.sevenPairs) {
-    fans.push(getFan('seven_pairs'))
+    const fans: Fan[] = [getFan('seven_pairs')]
     if (isConcealed && !ctx.isZimo) fans.push(getFan('all_concealed'))
     if (ctx.isZimo && !isConcealed) fans.push(getFan('self_draw'))
     if (ctx.isZimo && isConcealed) fans.push(getFan('concealed_self_draw'))
@@ -83,41 +91,96 @@ export function calculateScore(
     return finalize(fans, ctx)
   }
 
-  // ── Standard hand analysis ──
-  const allMelds = resolveHandMelds(allConcealed, melds)
+  // ── Standard hand: try ALL valid decompositions, keep best ──
+  const allDecompositions = resolveAllHandMelds(allConcealed, melds)
 
-  // Flush
-  if (isFullFlush(allMelds, allConcealed)) {
+  let bestFans: Fan[] = []
+  let bestTotal = -1
+
+  for (const decomp of allDecompositions) {
+    const fans = scoreMelds(decomp, isConcealed, ctx)
+    const total = fans.reduce((s, f) => s + f.fan, 0)
+    if (total > bestTotal) {
+      bestTotal = total
+      bestFans = fans
+    }
+  }
+
+  if (bestFans.length === 0) {
+    // Fallback if no valid decomposition found
+    bestFans = []
+  }
+
+  addContextFans(bestFans, ctx)
+  return finalize(bestFans, ctx)
+}
+
+// Score a specific decomposition (without context fans)
+function scoreMelds(allMelds: Meld[], isConcealed: boolean, ctx: ScoringContext): Fan[] {
+  const fans: Fan[] = []
+
+  // Flush / terminals
+  if (isFullFlush(allMelds)) {
     fans.push(getFan('full_flush'))
-  } else if (isMixedFlush(allMelds, allConcealed)) {
+  } else if (isMixedFlush(allMelds)) {
     fans.push(getFan('mixed_flush'))
-  } else if (isMixedTerminals(allMelds, allConcealed)) {
+  } else if (isMixedTerminalsHand(allMelds)) {
     fans.push(getFan('mixed_terminals'))
   }
 
-  if (isAllPungs(allMelds)) fans.push(getFan('all_pungs'))
-  else if (isAllChows(allMelds, isConcealed)) fans.push(getFan('all_chows'))
-
-  // Honor pungs
-  for (const meld of allMelds) {
-    if (meld.type !== 'pung' && meld.type !== 'kong') continue
-    const t = meld.tiles[0]
-    if (isDragon(t)) fans.push(getFan('dragon_pung'))
-    if (isWind(t) && t.value === seatToWindValue(ctx.seatWind)) fans.push(getFan('seat_wind_pung'))
-    if (isWind(t) && t.value === seatToWindValue(ctx.prevailingWind)) fans.push(getFan('prevailing_wind_pung'))
+  // All pungs / all chows
+  if (isAllPungs(allMelds)) {
+    fans.push(getFan('all_pungs'))
+  } else if (isAllChows(allMelds)) {
+    fans.push(getFan('all_chows'))
   }
 
-  // Self-draw
+  // Dragon fans
+  const dragonPungs = allMelds.filter(
+    m => (m.type === 'pung' || m.type === 'kong') && isDragon(m.tiles[0])
+  )
+  const dragonPairs = allMelds.filter(m => m.type === 'pair' && isDragon(m.tiles[0]))
+
+  if (dragonPungs.length === 2 && dragonPairs.length === 1) {
+    fans.push(getFan('small_three_dragons'))
+  } else {
+    for (const _ of dragonPungs) fans.push(getFan('dragon_pung'))
+  }
+
+  // Wind fans
+  const windPungs = allMelds.filter(
+    m => (m.type === 'pung' || m.type === 'kong') && isWind(m.tiles[0])
+  )
+  const windPairs = allMelds.filter(m => m.type === 'pair' && isWind(m.tiles[0]))
+  const allFourWindsPung = [1, 2, 3, 4].every(v =>
+    windPungs.some(m => m.tiles[0].value === v)
+  )
+  const threeDiffWindPungs = windPungs.length >= 3
+  const fourthWindPair = windPungs.length === 3 && windPairs.some(
+    m => ![...windPungs.map(p => p.tiles[0].value)].includes(m.tiles[0].value)
+  )
+
+  if (!allFourWindsPung) {
+    // Small four winds already counted as limit above — check per-wind fans
+    for (const m of windPungs) {
+      if (m.tiles[0].value === seatToWindValue(ctx.seatWind)) fans.push(getFan('seat_wind_pung'))
+      if (m.tiles[0].value === seatToWindValue(ctx.prevailingWind)) fans.push(getFan('prevailing_wind_pung'))
+    }
+  }
+
+  // Small four winds: 3 wind pungs + pair of 4th wind
+  if (threeDiffWindPungs && fourthWindPair) {
+    fans.push(getFan('small_four_winds'))
+  }
+
+  // Self-draw / concealed
   if (ctx.isZimo) {
-    if (isConcealed) fans.push(getFan('concealed_self_draw'))
-    else fans.push(getFan('self_draw'))
+    fans.push(isConcealed ? getFan('concealed_self_draw') : getFan('self_draw'))
   } else if (isConcealed) {
     fans.push(getFan('all_concealed'))
   }
 
-  addContextFans(fans, ctx)
-
-  return finalize(fans, ctx)
+  return fans
 }
 
 function addContextFans(fans: Fan[], ctx: ScoringContext) {
@@ -126,8 +189,6 @@ function addContextFans(fans: Fan[], ctx: ScoringContext) {
   if (ctx.isKongWin) fans.push(getFan('win_on_kong'))
   if (ctx.isRobbedKong) fans.push(getFan('robbing_kong'))
 
-  // Bonus tiles: only award a fan when the tile's number matches the player's seat wind
-  // Flowers 1-4 and Seasons 5-8 both map: value mod 4 → seat wind index (east=1…north=4)
   if (ctx.ruleSettings.flowers) {
     const seatVal = seatToWindValue(ctx.seatWind)
     for (const t of ctx.bonusTiles) {
@@ -135,69 +196,58 @@ function addContextFans(fans: Fan[], ctx: ScoringContext) {
       if (tileWindVal === seatVal) fans.push(getFan('flower_bonus'))
     }
   }
+
+  if (ctx.ruleSettings.noBonusFan && ctx.bonusTiles.length === 0) {
+    fans.push(getFan('no_bonus'))
+  }
 }
 
 function finalize(fans: Fan[], ctx: ScoringContext): FanBreakdown {
   const isLimit = fans.some(f => f.isLimit)
   const totalFan = isLimit ? LIMIT_FAN : fans.reduce((s, f) => s + f.fan, 0)
-  const basePoints = totalFan * (ctx.ruleSettings.pointsPerFan ?? 10)
-
-  const payments = computePayments(basePoints, ctx)
-
-  return { fans, totalFan, basePoints, payments }
+  const basePoints = totalFan * (ctx.ruleSettings.pointsPerFan ?? 1)
+  return { fans, totalFan, basePoints, payments: computePayments(basePoints, ctx) }
 }
 
 function computePayments(basePoints: number, ctx: ScoringContext): number[] {
   const payments = [0, 0, 0, 0]
-  const { winnerIndex, loserIndex, isZimo, isDealer } = ctx
-
+  const { winnerIndex, loserIndex, isZimo } = ctx
   if (isZimo) {
-    // Self-draw: all three other players pay the same amount
-    const payPerPlayer = isDealer ? basePoints * 2 : basePoints
     for (let i = 0; i < 4; i++) {
       if (i === winnerIndex) continue
-      payments[i] -= payPerPlayer
-      payments[winnerIndex] += payPerPlayer
+      payments[i] -= basePoints
+      payments[winnerIndex] += basePoints
     }
   } else {
-    // Discard win: responsible player pays all
     if (loserIndex === null) return payments
-    let payment = basePoints * 3  // covers all 3 other players
-    if (isDealer) payment *= 2    // winner is dealer: double
-    // Check if loser is dealer (loser pays double in some variants)
-    // Standard HK: winner is dealer → double; loser is dealer → no extra
-    payments[loserIndex] -= payment
-    payments[winnerIndex] += payment
+    payments[loserIndex] -= basePoints
+    payments[winnerIndex] += basePoints
   }
-
   return payments
 }
 
-// ─── Hand pattern detectors ───────────────────────────────────────────────────
+// ─── Meld decomposition ───────────────────────────────────────────────────────
 
-/** Resolve the full set of melds from concealed + exposed */
-function resolveHandMelds(concealed: Tile[], exposedMelds: Meld[]): Meld[] {
-  const meldCount = exposedMelds.filter(m => m.type !== 'kong').length +
-    exposedMelds.filter(m => m.type === 'kong').length
-  const slotsNeeded = 4 - meldCount
-
-  // Find best meld decomposition of concealed tiles
-  const inferred = inferMelds(concealed, slotsNeeded)
-  return [...exposedMelds, ...inferred]
+/** Return ALL valid meld decompositions combining exposed melds + inferred concealed melds */
+function resolveAllHandMelds(concealed: Tile[], exposedMelds: Meld[]): Meld[][] {
+  const slotsNeeded = 4 - exposedMelds.length
+  const allDecomps = inferAllMelds(concealed, slotsNeeded)
+  if (allDecomps.length === 0) return [[...exposedMelds]]
+  return allDecomps.map(inferred => [...exposedMelds, ...inferred])
 }
 
-function inferMelds(tiles: Tile[], count: number): Meld[] {
-  if (tiles.length === 0 || count === 0) return []
-  const result = inferMeldsRecursive([...tiles], count)
-  return result ?? []
+function inferAllMelds(tiles: Tile[], count: number): Meld[][] {
+  if (tiles.length === 0 && count === 0) return [[]]
+  if (tiles.length === 0 || count < 0) return []
+  return inferAllRecursive([...tiles], count)
 }
 
-function inferMeldsRecursive(tiles: Tile[], count: number): Meld[] | null {
-  if (tiles.length === 2 && count === 0) {
-    // This is the pair - handled outside
-    return []
-  }
-  if (tiles.length === 0 && count === 0) return []
+function inferAllRecursive(tiles: Tile[], count: number): Meld[][] {
+  if (tiles.length === 2 && count === 0) return [[{ type: 'pair' as const, tiles: [...tiles], concealed: true }]]
+  if (tiles.length === 0 && count === 0) return [[]]
+  if (tiles.length < 3 || count === 0) return []
+
+  const results: Meld[][] = []
 
   const sorted = [...tiles].sort((a, b) => {
     const so: Record<string, number> = { man: 0, pin: 1, sou: 2, honor: 3, bonus: 4 }
@@ -214,9 +264,9 @@ function inferMeldsRecursive(tiles: Tile[], count: number): Meld[] | null {
     const p2 = after1.findIndex(t => tilesEqual(t, first))
     if (p2 !== -1) {
       const after2 = removeIdx(after1, p2)
-      const sub = inferMeldsRecursive(after2, count - 1)
-      if (sub !== null) {
-        return [{ type: 'pung', tiles: [first, rest[p1], after1[p2]], concealed: true }, ...sub]
+      const subs = inferAllRecursive(after2, count - 1)
+      for (const sub of subs) {
+        results.push([{ type: 'pung', tiles: [first, rest[p1], after1[p2]], concealed: true }, ...sub])
       }
     }
   }
@@ -229,31 +279,32 @@ function inferMeldsRecursive(tiles: Tile[], count: number): Meld[] | null {
       const hiIdx = after1.findIndex(t => t.suit === first.suit && t.value === first.value + 2)
       if (hiIdx !== -1) {
         const after2 = removeIdx(after1, hiIdx)
-        const sub = inferMeldsRecursive(after2, count - 1)
-        if (sub !== null) {
-          return [{ type: 'chow', tiles: [first, rest[midIdx], after1[hiIdx]], concealed: true }, ...sub]
+        const subs = inferAllRecursive(after2, count - 1)
+        for (const sub of subs) {
+          results.push([{ type: 'chow', tiles: [first, rest[midIdx], after1[hiIdx]], concealed: true }, ...sub])
         }
       }
     }
   }
 
-  return null
+  return results
 }
 
 function removeIdx<T>(arr: T[], idx: number): T[] {
   return [...arr.slice(0, idx), ...arr.slice(idx + 1)]
 }
 
-function isFullFlush(melds: Meld[], concealed: Tile[]): boolean {
-  const allTiles = melds.flatMap(m => m.tiles)
-  const suits = new Set(allTiles.filter(t => !isHonor(t)).map(t => t.suit))
-  const hasHonor = allTiles.some(isHonor)
-  return suits.size === 1 && !hasHonor
+// ─── Pattern detectors ────────────────────────────────────────────────────────
+
+function isFullFlush(melds: Meld[]): boolean {
+  const tiles = melds.flatMap(m => m.tiles)
+  const suits = new Set(tiles.filter(t => !isHonor(t)).map(t => t.suit))
+  return suits.size === 1 && !tiles.some(isHonor)
 }
 
-function isMixedFlush(melds: Meld[], concealed: Tile[]): boolean {
-  const allTiles = melds.flatMap(m => m.tiles)
-  const suits = new Set(allTiles.filter(t => !isHonor(t)).map(t => t.suit))
+function isMixedFlush(melds: Meld[]): boolean {
+  const tiles = melds.flatMap(m => m.tiles)
+  const suits = new Set(tiles.filter(t => !isHonor(t)).map(t => t.suit))
   return suits.size === 1
 }
 
@@ -261,13 +312,12 @@ function isAllPungs(melds: Meld[]): boolean {
   return melds.filter(m => m.type !== 'pair').every(m => m.type === 'pung' || m.type === 'kong')
 }
 
-function isAllChows(melds: Meld[], isConcealed: boolean): boolean {
+function isAllChows(melds: Meld[]): boolean {
   return melds.filter(m => m.type !== 'pair').every(m => m.type === 'chow')
 }
 
-function isMixedTerminals(melds: Meld[], concealed: Tile[]): boolean {
-  const allTiles = melds.flatMap(m => m.tiles)
-  return allTiles.every(t => isTerminal(t) || isHonor(t))
+function isMixedTerminalsHand(melds: Meld[]): boolean {
+  return melds.flatMap(m => m.tiles).every(t => isTerminal(t) || isHonor(t))
 }
 
 function isNineGates(concealed: Tile[], melds: Meld[]): boolean {
@@ -275,10 +325,8 @@ function isNineGates(concealed: Tile[], melds: Meld[]): boolean {
   if (concealed.length !== 14) return false
   const suits = new Set(concealed.map(t => t.suit))
   if (suits.size !== 1 || suits.has('honor') || suits.has('bonus')) return false
-  const suit = concealed[0].suit
   const counts: Record<number, number> = {}
   for (const t of concealed) counts[t.value] = (counts[t.value] ?? 0) + 1
-  // Pattern: 1112345678999 + any one tile
   if ((counts[1] ?? 0) < 3 || (counts[9] ?? 0) < 3) return false
   for (let v = 2; v <= 8; v++) {
     if ((counts[v] ?? 0) < 1) return false
@@ -287,22 +335,83 @@ function isNineGates(concealed: Tile[], melds: Meld[]): boolean {
 }
 
 function isFourConcealedPungs(concealed: Tile[], melds: Meld[]): boolean {
-  const allMelds = [...melds]
+  const exposedNonKong = melds.filter(m => !m.concealed && m.type !== 'kong')
+  if (exposedNonKong.length > 0) return false
   const groups = groupTiles(concealed)
   let pungCount = 0
   for (const g of groups.values()) {
     if (g.length >= 3) pungCount++
   }
-  const exposedNonKong = melds.filter(m => !m.concealed && m.type !== 'kong')
-  return exposedNonKong.length === 0 && pungCount + melds.filter(m => m.concealed).length >= 4
+  return pungCount + melds.filter(m => m.concealed).length >= 4
 }
 
 function isAllHonors(concealed: Tile[], melds: Meld[]): boolean {
-  const all = [...concealed, ...melds.flatMap(m => m.tiles)]
-  return all.every(isHonor)
+  return [...concealed, ...melds.flatMap(m => m.tiles)].every(isHonor)
 }
 
 function isAllTerminalsHand(concealed: Tile[], melds: Meld[]): boolean {
+  return [...concealed, ...melds.flatMap(m => m.tiles)].every(isTerminal)
+}
+
+function isBigFourWinds(concealed: Tile[], melds: Meld[]): boolean {
   const all = [...concealed, ...melds.flatMap(m => m.tiles)]
-  return all.every(isTerminal)
+  // All 4 winds must appear as pungs/kongs — need 4×3 = 12 wind tiles + 2 pair = 14
+  // Check via decompositions: all 4 wind values must have pung/kong somewhere
+  // Simple heuristic: count wind tiles
+  const windCounts: Record<number, number> = {}
+  for (const t of all) {
+    if (isWind(t)) windCounts[t.value] = (windCounts[t.value] ?? 0) + 1
+  }
+  return [1, 2, 3, 4].every(v => (windCounts[v] ?? 0) >= 3)
+}
+
+function isBigThreeDragons(concealed: Tile[], melds: Meld[]): boolean {
+  const all = [...concealed, ...melds.flatMap(m => m.tiles)]
+  const dragonCounts: Record<number, number> = {}
+  for (const t of all) {
+    if (isDragon(t)) dragonCounts[t.value] = (dragonCounts[t.value] ?? 0) + 1
+  }
+  return [5, 6, 7].every(v => (dragonCounts[v] ?? 0) >= 3)
+}
+
+function isFourKongs(melds: Meld[]): boolean {
+  return melds.filter(m => m.type === 'kong').length >= 4
+}
+
+// ─── Fan threshold check (for win-offer gating) ───────────────────────────────
+
+/**
+ * Returns true if the hand would score >= minFanToWin fans.
+ * hand should NOT include winTile (calculateScore adds it internally).
+ */
+export function checkWinMeetsFan(
+  hand: Tile[],
+  melds: Meld[],
+  winTile: Tile,
+  isZimo: boolean,
+  player: Player,
+  prevailingWind: SeatWind,
+  wallEmpty: boolean,
+  winnerIndex: number,
+  loserIndex: number | null,
+  allPlayers: Player[],
+  ruleSettings: RuleSettings,
+): boolean {
+  if (ruleSettings.minFanToWin === 0) return true
+  const ctx: ScoringContext = {
+    isZimo,
+    isDealer: player.isDealer,
+    prevailingWind,
+    seatWind: player.seatWind,
+    winTile,
+    isLastTile: wallEmpty,
+    isKongWin: false,
+    isRobbedKong: false,
+    bonusTiles: player.bonusTiles,
+    winnerIndex,
+    loserIndex,
+    players: allPlayers,
+    ruleSettings,
+  }
+  return calculateScore(hand, melds, ctx).totalFan >= ruleSettings.minFanToWin
 }

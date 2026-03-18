@@ -48,18 +48,22 @@ export interface RuleSettings {
   minFanToWin: number        // 0 = none, 1 = at least 1 fan, 3 = common HK standard
   sevenPairs: boolean        // allow 七對子 as winning hand
   flowers: boolean           // count flower/season bonus tiles
+  noBonusFan: boolean        // award +1 fan when winner has no bonus tiles
   multipleWinners: boolean   // allow multiple players to win on the same discard
   turnTimeLimit: number      // seconds per turn for human, 0 = no limit
   pointsPerFan: number       // points awarded per fan (e.g. 1 = 3 fans → 3 pts)
+  enableGameLog: boolean     // show a scrollable action log on the board
 }
 
 export const DEFAULT_RULES: RuleSettings = {
   minFanToWin: 3,
   sevenPairs: true,
   flowers: true,
+  noBonusFan: false,
   multipleWinners: true,
   turnTimeLimit: 45,
   pointsPerFan: 1,
+  enableGameLog: false,
 }
 
 // ─── Game state ───────────────────────────────────────────────────────────────
@@ -88,6 +92,14 @@ export interface PendingClaim {
   canWin: boolean
 }
 
+export interface GameLogEntry {
+  id: number
+  playerIndex: number
+  playerName: string
+  message: string
+  timestamp: string
+}
+
 export interface RoundState {
   roundNumber: number
   prevailingWind: PrevailingWind
@@ -101,6 +113,7 @@ export interface RoundState {
   lastDiscard: Tile | null
   lastDiscardBy: number | null
   kongPending: boolean        // replacement draw needed
+  bonusDrawSeq: number        // increments each bonus draw, breaks dep equality for re-fire
   pendingClaims: (PendingClaim | null)[]  // per player
   skipCount: number           // how many players skipped current discard
 }
@@ -127,6 +140,7 @@ export interface GameState {
   roundHistory: RoundResult[]
   maxWindRounds: number   // 2 for half, 4 for full
   humanPlayerIndex: number
+  gameLog: GameLogEntry[]
 }
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────

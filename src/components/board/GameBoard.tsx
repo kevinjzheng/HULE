@@ -4,12 +4,13 @@ import { useUIStore } from '../../store/uiStore'
 import { PlayerArea } from './PlayerArea'
 import { CenterArea } from './CenterArea'
 import { ScoreModal } from '../scoring/ScoreModal'
+import { WinningHandDisplay } from '../scoring/WinningHandDisplay'
 import { ActionBar } from '../actions/ActionBar'
 import { WinAnimation } from '../animation/WinAnimation'
 
 export function GameBoard() {
   const { state } = useGameStore()
-  const { showScoreModal, showWinAnimation } = useUIStore()
+  const { showScoreModal, showWinAnimation, showWinningHand } = useUIStore()
   const { players, humanPlayerIndex } = state
 
   // Seat layout from human's perspective:
@@ -58,6 +59,7 @@ export function GameBoard() {
       </div>
 
       {/* Overlays */}
+      {showWinningHand && <WinningHandDisplay />}
       {showScoreModal && <ScoreModal />}
       {showWinAnimation && <WinAnimation />}
     </div>
