@@ -1,8 +1,7 @@
 // ─── Tile image URLs via Vite glob import ─────────────────────────────────────
 // Images are in <project-root>/images/mahjong_tiles/ and imported as asset URLs
 
-// Vite 2: use globEager (Vite 3+ uses glob with { eager: true })
-const rawImages = import.meta.globEager('/images/mahjong_tiles/**/*.png') as Record<string, { default: string }>
+const rawImages = import.meta.glob('/images/mahjong_tiles/**/*.png', { eager: true }) as Record<string, { default: string }>
 
 function img(relativePath: string): string {
   return rawImages[`/images/mahjong_tiles/${relativePath}`]?.default ?? ''
