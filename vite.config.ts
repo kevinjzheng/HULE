@@ -10,6 +10,10 @@ export default defineConfig({
         ws: true,
         rewriteWsOrigin: true,
       },
+      '/tts': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })

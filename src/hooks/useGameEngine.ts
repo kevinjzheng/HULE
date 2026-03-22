@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { useUIStore } from '../store/uiStore'
 import { botSelectDiscard, botDecideClaim, botDecideAfterDraw } from '../ai/botPlayer'
-import { playDraw, playDiscard, playActionAvailable, playWin, playKong, sayWin, sayKong, sayPung, sayChow, sayFlower } from '../utils/sounds'
+import { playDraw, playDiscard, playActionAvailable, playWin, playKong, sayWin, sayZimo, sayKong, sayPung, sayChow, sayFlower } from '../utils/sounds'
 
 const BOT_THINK_MS = 900
 const BOT_CLAIM_MS = 700
@@ -74,7 +74,7 @@ export function useGameEngine() {
               setWinnerIndex(ti)
               setShowWinAnimation(true)
               playWin()
-              sayWin()
+              sayZimo()
             } else if (actionAfterDraw.type === 'DECLARE_CLOSED_KONG' || actionAfterDraw.type === 'EXTEND_KONG') {
               playKong()
               sayKong()

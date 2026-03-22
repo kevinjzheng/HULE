@@ -85,9 +85,13 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
       </div>
     )
 
-    // Melds + bonus: also sideways, in a column — use larger size than hand tiles
-    const meldColumn = (player.melds.length > 0 || player.bonusTiles.length > 0) ? (
-      <div className="flex flex-col gap-2 items-center flex-shrink-0">
+    // Melds + bonus: also sideways, in a column — fixed width prevents layout shift
+    // when the first meld/bonus tile appears (avoids center area reflow on flower draw).
+    const meldColumn = (
+      <div
+        className="flex flex-col gap-2 items-center flex-shrink-0"
+        style={{ width: SIDEWAYS_MELD_SIZE.height }}
+      >
         {player.melds.map((meld, mi) => (
           <div key={mi} className="flex flex-col gap-1">
             {meld.tiles.map((t, ti) => (
@@ -110,7 +114,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
           />
         ))}
       </div>
-    ) : null
+    )
 
     // left player:  [hand outer] [meld inner→center] — flex-row [hand, meld]
     // right player: [meld inner←center] [hand outer] — flex-row-reverse [hand, meld]

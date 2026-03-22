@@ -6,7 +6,7 @@ import { getClosedKongOptions, getExtendKongOptions } from '../../rulesets/hongk
 import { cn } from '../../utils/cn'
 import { TileComponent } from '../tiles/TileComponent'
 import type { Tile } from '../../types'
-import { playDiscard, playWin, playKong, sayChow, sayPung, sayKong, sayWin } from '../../utils/sounds'
+import { playDiscard, playWin, playKong, sayChow, sayPung, sayKong, sayWin, sayZimo } from '../../utils/sounds'
 import { TurnTimer } from '../board/TurnTimer'
 import { ClaimTimer } from '../board/ClaimTimer'
 
@@ -58,7 +58,7 @@ export function ActionBar() {
               color="bg-yellow-500 hover:bg-yellow-400 animate-pulse"
               onClick={() => {
                 playWin()
-                sayWin()
+                sayZimo()
                 setWinnerIndex(humanPlayerIndex)
                 setShowWinAnimation(true)
                 dispatch({ type: 'DECLARE_WIN', playerIndex: humanPlayerIndex })
