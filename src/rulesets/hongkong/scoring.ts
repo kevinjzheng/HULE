@@ -237,23 +237,40 @@ function resolveAllHandMelds(concealed: Tile[], exposedMelds: Meld[]): Meld[][] 
 }
 
 function inferAllMelds(tiles: Tile[], count: number): Meld[][] {
-  if (tiles.length === 0 && count === 0) return [[]]
-  if (tiles.length === 0 || count < 0) return []
-  return inferAllRecursive([...tiles], count)
+  // Enumerate every valid pair choice first, then form `count` melds from the rest.
+  // This avoids the bug where the old recursive approach failed when pair tiles
+  // sorted before later meld tiles (e.g. man pair + sou chows).
+  if (tiles.length < 2) return []
+
+  const sorted = tileSort([...tiles])
+  const results: Meld[][] = []
+  const triedPairs = new Set<string>()
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const pairKey = `${sorted[i].suit}-${sorted[i].value}`
+    if (triedPairs.has(pairKey)) continue
+
+    const j = sorted.findIndex((t, idx) => idx > i && tilesEqual(t, sorted[i]))
+    if (j === -1) continue
+    triedPairs.add(pairKey)
+
+    const remaining = sorted.filter((_, idx) => idx !== i && idx !== j)
+    const meldDecomps = inferMeldsOnly(remaining, count)
+    for (const melds of meldDecomps) {
+      results.push([{ type: 'pair' as const, tiles: [sorted[i], sorted[j]], concealed: true }, ...melds])
+    }
+  }
+
+  return results
 }
 
-function inferAllRecursive(tiles: Tile[], count: number): Meld[][] {
-  if (tiles.length === 2 && count === 0) return [[{ type: 'pair' as const, tiles: [...tiles], concealed: true }]]
-  if (tiles.length === 0 && count === 0) return [[]]
-  if (tiles.length < 3 || count === 0) return []
+/** Form exactly `count` melds from `tiles` — no pair handling. */
+function inferMeldsOnly(tiles: Tile[], count: number): Meld[][] {
+  if (count === 0) return tiles.length === 0 ? [[]] : []
+  if (tiles.length < 3) return []
 
+  const sorted = tileSort([...tiles])
   const results: Meld[][] = []
-
-  const sorted = [...tiles].sort((a, b) => {
-    const so: Record<string, number> = { man: 0, pin: 1, sou: 2, honor: 3, bonus: 4 }
-    return ((so[a.suit] ?? 5) - (so[b.suit] ?? 5)) || (a.value - b.value)
-  })
-
   const first = sorted[0]
   const rest = sorted.slice(1)
 
@@ -264,8 +281,7 @@ function inferAllRecursive(tiles: Tile[], count: number): Meld[][] {
     const p2 = after1.findIndex(t => tilesEqual(t, first))
     if (p2 !== -1) {
       const after2 = removeIdx(after1, p2)
-      const subs = inferAllRecursive(after2, count - 1)
-      for (const sub of subs) {
+      for (const sub of inferMeldsOnly(after2, count - 1)) {
         results.push([{ type: 'pung', tiles: [first, rest[p1], after1[p2]], concealed: true }, ...sub])
       }
     }
@@ -279,8 +295,7 @@ function inferAllRecursive(tiles: Tile[], count: number): Meld[][] {
       const hiIdx = after1.findIndex(t => t.suit === first.suit && t.value === first.value + 2)
       if (hiIdx !== -1) {
         const after2 = removeIdx(after1, hiIdx)
-        const subs = inferAllRecursive(after2, count - 1)
-        for (const sub of subs) {
+        for (const sub of inferMeldsOnly(after2, count - 1)) {
           results.push([{ type: 'chow', tiles: [first, rest[midIdx], after1[hiIdx]], concealed: true }, ...sub])
         }
       }
@@ -288,6 +303,11 @@ function inferAllRecursive(tiles: Tile[], count: number): Meld[][] {
   }
 
   return results
+}
+
+function tileSort(tiles: Tile[]): Tile[] {
+  const so: Record<string, number> = { man: 0, pin: 1, sou: 2, honor: 3, bonus: 4 }
+  return tiles.sort((a, b) => ((so[a.suit] ?? 5) - (so[b.suit] ?? 5)) || (a.value - b.value))
 }
 
 function removeIdx<T>(arr: T[], idx: number): T[] {

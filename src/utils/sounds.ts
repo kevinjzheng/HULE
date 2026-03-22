@@ -53,7 +53,7 @@ function beep(opts: {
       osc.frequency.setValueAtTime(opts.freq2, t + opts.freq2At)
     }
 
-    const vol = opts.volume ?? 0.18
+    const vol = opts.volume ?? 0.144
     const decay = opts.decay ?? 0.18
     gain.gain.setValueAtTime(0, t)
     gain.gain.linearRampToValueAtTime(vol, t + 0.003)
@@ -112,102 +112,169 @@ function noiseBlast(opts: {
 /** Ivory tile clack — tile added to hand */
 export function playDraw() {
   // Two quick clack hits like ivory tiles clicking together (~1100 Hz range)
-  beep({ freq: 1150, type: 'triangle', volume: 0.3, decay: 0.045 })
-  beep({ freq: 1300, type: 'triangle', volume: 0.22, decay: 0.038, delay: 0.028 })
+  beep({ freq: 1150, type: 'triangle', volume: 0.24, decay: 0.045 })
+  beep({ freq: 1300, type: 'triangle', volume: 0.176, decay: 0.038, delay: 0.028 })
   // Subtle texture burst
-  noiseBlast({ volume: 0.15, decay: 0.04, hpFreq: 900, lpFreq: 5000 })
+  noiseBlast({ volume: 0.12, decay: 0.04, hpFreq: 900, lpFreq: 5000 })
 }
 
 /** Light thump — tile placed on table */
 export function playDiscard() {
   // Mid-range body thump (lighter, not as boomy)
-  beep({ freq: 280, freq2: 200, freq2At: 0.05, type: 'sine', volume: 0.42, decay: 0.13 })
+  beep({ freq: 280, freq2: 200, freq2At: 0.05, type: 'sine', volume: 0.336, decay: 0.13 })
   // Impact texture
-  noiseBlast({ volume: 0.25, decay: 0.055, hpFreq: 600, lpFreq: 4000 })
+  noiseBlast({ volume: 0.2, decay: 0.055, hpFreq: 600, lpFreq: 4000 })
   // Light click transient
-  beep({ freq: 1100, type: 'triangle', volume: 0.15, decay: 0.025 })
+  beep({ freq: 1100, type: 'triangle', volume: 0.12, decay: 0.025 })
 }
 
 /** Two-tone rising chime — action available */
 export function playActionAvailable() {
-  beep({ freq: 880, type: 'sine', volume: 0.25, decay: 0.28 })
-  beep({ freq: 1175, type: 'sine', volume: 0.2, decay: 0.35, delay: 0.13 })
+  beep({ freq: 880, type: 'sine', volume: 0.2, decay: 0.28 })
+  beep({ freq: 1175, type: 'sine', volume: 0.16, decay: 0.35, delay: 0.13 })
 }
 
 /** Bright triumphant chord — win declared */
 export function playWin() {
-  beep({ freq: 523, type: 'sine', volume: 0.28, decay: 0.6 })
-  beep({ freq: 659, type: 'sine', volume: 0.24, decay: 0.65, delay: 0.05 })
-  beep({ freq: 784, type: 'sine', volume: 0.2, decay: 0.75, delay: 0.11 })
-  beep({ freq: 1047, type: 'sine', volume: 0.18, decay: 0.9, delay: 0.2 })
-  beep({ freq: 1319, type: 'sine', volume: 0.14, decay: 1.0, delay: 0.32 })
+  beep({ freq: 523, type: 'sine', volume: 0.224, decay: 0.6 })
+  beep({ freq: 659, type: 'sine', volume: 0.192, decay: 0.65, delay: 0.05 })
+  beep({ freq: 784, type: 'sine', volume: 0.16, decay: 0.75, delay: 0.11 })
+  beep({ freq: 1047, type: 'sine', volume: 0.144, decay: 0.9, delay: 0.2 })
+  beep({ freq: 1319, type: 'sine', volume: 0.112, decay: 1.0, delay: 0.32 })
 }
 
 /** Kong draw — warm resonant click */
 export function playKong() {
-  beep({ freq: 440, freq2: 660, freq2At: 0.08, type: 'triangle', volume: 0.22, decay: 0.25 })
+  beep({ freq: 440, freq2: 660, freq2At: 0.08, type: 'triangle', volume: 0.176, decay: 0.25 })
 }
 
 /** Short tick — turn timer countdown (≤10 seconds) */
 export function playTick() {
-  beep({ freq: 900, type: 'sine', volume: 0.22, decay: 0.06 })
+  beep({ freq: 900, type: 'sine', volume: 0.176, decay: 0.06 })
 }
 
-// ─── Cantonese speech via Web Speech API ──────────────────────────────────────
+// ─── Cantonese speech via Google Cloud TTS (server proxy) ─────────────────────
+//
+// The server exposes GET /tts?text=<Chinese> which proxies to Google Cloud TTS
+// (yue-HK WaveNet-A voice). Audio is decoded and played through the AudioContext
+// so it shares the same audio pipeline as sound effects.
+//
+// Falls back to Web Speech API if the server endpoint is unavailable (e.g. no
+// GOOGLE_CLOUD_TTS_API_KEY configured, or offline dev without the server running).
 
-let _cantoneseVoice: SpeechSynthesisVoice | null | undefined = undefined
+// Derive the server base URL.
+// In production VITE_WS_URL is set (e.g. wss://hule-server.onrender.com/ws),
+// so we strip the protocol prefix and /ws suffix to get the HTTP base URL.
+// In local dev the Vite proxy forwards /tts → http://localhost:8080, so '' works.
+const _TTS_BASE = (() => {
+  const wsUrl = import.meta.env.VITE_WS_URL as string | undefined
+  if (wsUrl) return wsUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/ws$/, '')
+  return ''
+})()
 
-function getCantoneseVoice(): SpeechSynthesisVoice | null {
-  if (_cantoneseVoice !== undefined) return _cantoneseVoice
+// Probe TTS availability once at module load with a 2-second timeout.
+// After the probe resolves, speak() never waits on a dead server.
+let _ttsAvailable: boolean | null = null
+;(async () => {
+  try {
+    const ac = new AbortController()
+    setTimeout(() => ac.abort(), 2000)
+    const res = await fetch(`${_TTS_BASE}/tts?text=%E7%A2%B0`, { signal: ac.signal })
+    _ttsAvailable = res.ok
+  } catch {
+    _ttsAvailable = false
+  }
+})()
+
+// Client-side AudioBuffer cache — avoids re-fetching the same term
+const _ttsCache = new Map<string, AudioBuffer>()
+
+// Web Speech fallback ─────────────────────────────────────────────────────────
+
+let _chineseVoice: SpeechSynthesisVoice | null | undefined = undefined
+
+function getChineseVoice(): SpeechSynthesisVoice | null {
+  if (_chineseVoice !== undefined) return _chineseVoice
   if (typeof window === 'undefined' || !window.speechSynthesis) return null
   const voices = window.speechSynthesis.getVoices()
-  // Only match true Cantonese voices — zh-TW / generic zh are Mandarin and
-  // would read 食碰槓 in Putonghua, which is worse than Jyutping romanization.
-  _cantoneseVoice =
+  // Prefer Cantonese; fall back to any Chinese voice so audio always plays.
+  _chineseVoice =
     voices.find(v => v.lang === 'zh-HK') ??
     voices.find(v => v.lang === 'yue-HK') ??
     voices.find(v => v.lang === 'yue') ??
+    voices.find(v => v.lang === 'zh-TW') ??
+    voices.find(v => v.lang.startsWith('zh')) ??
     null
-  return _cantoneseVoice
+  return _chineseVoice
 }
 
-// Re-resolve voice after voices load (browsers load voices async on first call)
 if (typeof window !== 'undefined' && window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    _cantoneseVoice = undefined  // reset cache so next call re-resolves
-  }
+  window.speechSynthesis.onvoiceschanged = () => { _chineseVoice = undefined }
 }
 
-/**
- * Speak a Cantonese game term.
- * @param zhText  Chinese characters — used when a Cantonese (zh-HK/yue) voice is available.
- * @param jyutping Jyutping romanization without tone numbers (from ToJyutping) — used as
- *                 fallback so English TTS produces a phonetically closer result than Chinese
- *                 characters read by a Mandarin voice.
- */
-export function speak(zhText: string, jyutping: string) {
+function speakWebSpeech(zhText: string, _phonetic: string) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return
-  const voice = getCantoneseVoice()
-  const utt = new SpeechSynthesisUtterance(voice ? zhText : jyutping)
-  if (voice) {
-    utt.voice = voice
-    utt.lang = voice.lang
-  }
-  // No lang override on Jyutping fallback — let default English TTS read the
-  // romanization. Setting zh-HK on a Mandarin/English voice would mangle it.
-  utt.pitch = 1.3
-  utt.rate = 0.85
+  const voice = getChineseVoice()
+  // With a Chinese voice: speak Chinese characters in the voice's own locale.
+  // Without any Chinese voice: fall back to English phonetics so the browser's
+  // default voice says something rather than staying completely silent.
+  const utt = new SpeechSynthesisUtterance(voice ? zhText : _phonetic)
+  if (voice) { utt.voice = voice; utt.lang = voice.lang }
+  utt.pitch = 1.1
+  utt.rate = 0.9
   utt.volume = 1
+  console.log('[TTS] Web Speech fallback:', voice ? zhText : _phonetic, '| voice:', voice?.name ?? 'default', '| lang:', utt.lang || 'default')
   window.speechSynthesis.cancel()
   window.speechSynthesis.speak(utt)
 }
 
-// Jyutping (ToJyutping): 食 sik6 · 碰 pung3 · 槓 gong3 · 花 faa1 · 胡牌 wu4 paai4
-export const sayChow   = () => speak('食',   'sik')      // sik6
-export const sayPung   = () => speak('碰',   'pung')     // pung3
-export const sayKong   = () => speak('槓',   'gong')     // gong3
-export const sayFlower = () => speak('花',   'faa')      // faa1
-export const sayWin    = () => speak('胡牌', 'wu paai')  // wu4 paai4
+// Main speak function ─────────────────────────────────────────────────────────
+
+/**
+ * Speak a Cantonese game term.
+ * Fetches MP3 audio from the server's Google Cloud TTS proxy and plays it
+ * through the Web Audio API. Falls back to Web Speech API on any error.
+ *
+ * @param zhText   Chinese characters to synthesise (yue-HK WaveNet voice)
+ * @param phonetic English phonetic spelling used only when no server or Chinese
+ *                 voice is available (e.g. 'pung', 'gong', 'wu pai')
+ */
+export async function speak(zhText: string, phonetic: string): Promise<void> {
+  // Skip fetch entirely if the server is already known to be unavailable
+  if (_ttsAvailable === false) {
+    console.log('[TTS] server unavailable, using Web Speech for:', zhText)
+    speakWebSpeech(zhText, phonetic)
+    return
+  }
+
+  try {
+    let audioBuffer = _ttsCache.get(zhText)
+    if (!audioBuffer) {
+      const ac = new AbortController()
+      setTimeout(() => ac.abort(), 3000)
+      const res = await fetch(`${_TTS_BASE}/tts?text=${encodeURIComponent(zhText)}`, { signal: ac.signal })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const arrayBuf = await res.arrayBuffer()
+      audioBuffer = await ctx().decodeAudioData(arrayBuf)
+      _ttsCache.set(zhText, audioBuffer)
+    }
+    _ttsAvailable = true
+    const source = ctx().createBufferSource()
+    source.buffer = audioBuffer
+    source.connect(ctx().destination)
+    source.start()
+  } catch {
+    _ttsAvailable = false  // mark unavailable so future calls skip the fetch
+    speakWebSpeech(zhText, phonetic)
+  }
+}
+
+export const sayChow   = () => speak('上',   'seong')
+export const sayPung   = () => speak('碰',   'pung')
+export const sayKong   = () => speak('槓',   'gong')
+export const sayFlower = () => speak('花牌', 'faa paai')
+export const sayWin    = () => speak('食糊', 'sik wu')
+export const sayZimo   = () => speak('自摸', 'zi mo')
 
 /** Tile-clatter burst — shuffle animation */
 export function playShuffling() {
@@ -216,8 +283,8 @@ export function playShuffling() {
   for (let i = 0; i < bursts; i++) {
     const delay = i * 0.05 + Math.random() * 0.02
     // Low thud component
-    noiseBlast({ volume: 0.4 + Math.random() * 0.15, decay: 0.07, hpFreq: 400, lpFreq: 3000, delay })
+    noiseBlast({ volume: 0.32 + Math.random() * 0.12, decay: 0.07, hpFreq: 400, lpFreq: 3000, delay })
     // High click component
-    noiseBlast({ volume: 0.25 + Math.random() * 0.1, decay: 0.03, hpFreq: 3000, delay: delay + 0.005 })
+    noiseBlast({ volume: 0.2 + Math.random() * 0.08, decay: 0.03, hpFreq: 3000, delay: delay + 0.005 })
   }
 }

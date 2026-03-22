@@ -116,6 +116,91 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
+## Local Development
+
+### Prerequisites
+
+- Node.js 18 (the server uses `--experimental-specifier-resolution=node`, which is available in Node 18 and removed in Node 20+)
+- npm
+
+### Single-player only (no server required)
+
+Install root dependencies and start the Vite dev server:
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. Single-player mode (1 human vs 3 bots) runs entirely in the browser — no backend server needed.
+
+### Multiplayer (WebSocket server + Vite dev server)
+
+The multiplayer WebSocket server lives in `server/` and has its own `package.json`. Open two terminals:
+
+**Terminal 1 — WebSocket server**
+```bash
+cd server
+npm install
+npm run dev
+```
+
+The server starts on port 8080. You should see:
+```
+[server] HULE WebSocket server listening on ws://0.0.0.0:8080
+```
+
+**Terminal 2 — Vite dev server (from repo root)**
+```bash
+npm run dev
+```
+
+Vite proxies `/ws` and `/tts` requests to `localhost:8080` automatically (configured in `vite.config.ts`), so the frontend connects to the backend without any additional configuration.
+
+Open `http://localhost:5173` in multiple browser tabs to test multiplayer:
+
+1. Tab 1: **Multiplayer → Create Room** — note the 6-character room code
+2. Tabs 2–4: **Multiplayer → Join Room** — enter the code and a unique player name
+3. Tab 1: press **Start Game** once all players have joined
+
+To test with fewer than 4 humans, start the game early — empty seats are filled by bots automatically.
+
+### Cantonese TTS (optional)
+
+The game uses Google Cloud Text-to-Speech for Cantonese action announcements (吃, 碰, 槓, 花, 胡牌). This requires an API key and the backend server to be running.
+
+**Without a key:** the game falls back to the browser's Web Speech API (any installed Chinese voice, or English phonetics). All audio still works — only the TTS quality differs.
+
+**To enable Google Cloud TTS locally:**
+
+1. Create a Google Cloud project and enable the [Cloud Text-to-Speech API](https://console.cloud.google.com/apis/library/texttospeech.googleapis.com)
+2. Create an API key (or a service account with the Text-to-Speech User role)
+3. Set the environment variable before starting the server:
+
+```bash
+# Using an API key
+GOOGLE_CLOUD_TTS_API_KEY=your_key_here npm run dev
+
+# Or using a service account credentials file
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json npm run dev
+```
+
+When the key is valid, the server pre-caches all five game terms at startup:
+```
+[tts] Google Cloud TTS client initialised
+[tts] Pre-cached 5/5 terms
+```
+
+### Running tests
+
+```bash
+npm test
+```
+
+Runs the Jest test suite covering win conditions and fan scoring. Tests are in `src/rulesets/hongkong/__tests__/`.
+
+---
+
 ## Project Structure
 
 ```

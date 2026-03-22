@@ -16,6 +16,7 @@ import http from 'http'
 import crypto from 'crypto'
 import { WebSocketServer } from 'ws'
 import type { WebSocket } from 'ws'
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts'
 import { GameRoom } from '../src/server/GameRoom.js'
 import type { WSLike } from '../src/server/GameRoom.js'
 import type { ClientMessage } from '../src/types/network.js'
@@ -24,6 +25,36 @@ import type { ClientMessage } from '../src/types/network.js'
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10)
 const ROOM_TTL_MS = 30 * 60 * 1000   // 30 min idle room cleanup
+
+// ── Microsoft Edge TTS ────────────────────────────────────────────────────────
+
+const TTS_VOICE = 'zh-HK-WanLungNeural'  // male Cantonese neural voice
+const TTS_TERMS = ['上', '碰', '槓', '花牌', '食糊', '自摸']
+const ttsCache = new Map<string, Buffer>()
+
+async function synthesizeSpeech(text: string): Promise<Buffer> {
+  const tts = new MsEdgeTTS()
+  await tts.setMetadata(TTS_VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3)
+  const { audioStream } = tts.toStream(text)
+  const chunks: Buffer[] = []
+  for await (const chunk of audioStream) {
+    chunks.push(chunk as Buffer)
+  }
+  return Buffer.concat(chunks)
+}
+
+async function warmTtsCache() {
+  let cached = 0
+  for (const text of TTS_TERMS) {
+    try {
+      ttsCache.set(text, await synthesizeSpeech(text))
+      cached++
+    } catch (err) {
+      console.warn(`[tts] Failed to pre-cache "${text}":`, (err as Error).message)
+    }
+  }
+  console.log(`[tts] Pre-cached ${cached}/${TTS_TERMS.length} terms (${TTS_VOICE})`)
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -54,7 +85,38 @@ setInterval(() => {
 
 // ── HTTP + WS server ──────────────────────────────────────────────────────────
 
-const server = http.createServer((_req, res) => {
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)
+
+  // CORS preflight
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+
+  // ── GET /tts?text=<Chinese characters> ──────────────────────────────────
+  if (url.pathname === '/tts' && req.method === 'GET') {
+    const text = url.searchParams.get('text') ?? ''
+    if (!text) { res.writeHead(400); res.end('Missing text parameter'); return }
+
+    try {
+      let audio = ttsCache.get(text)
+      if (!audio) {
+        audio = await synthesizeSpeech(text)
+        ttsCache.set(text, audio)
+      }
+      res.writeHead(200, {
+        'Content-Type': 'audio/mpeg',
+        'Cache-Control': 'public, max-age=86400',
+        'Content-Length': audio.length,
+      })
+      res.end(audio)
+    } catch (err) {
+      console.error('[tts] Synthesis error:', (err as Error).message)
+      res.writeHead(500); res.end('TTS synthesis failed')
+    }
+    return
+  }
+
   res.writeHead(200, { 'Content-Type': 'text/plain' })
   res.end(`HULE server · ${rooms.size} room(s) active\n`)
 })
@@ -201,6 +263,7 @@ wss.on('connection', (ws: WebSocket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[server] HULE WebSocket server listening on ws://0.0.0.0:${PORT}`)
+  warmTtsCache()
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
