@@ -8,7 +8,7 @@ const BOT_THINK_MS = 900
 const BOT_CLAIM_MS = 700
 
 export function useGameEngine() {
-  const { state, dispatch } = useGameStore()
+  const { state, dispatch, networkMode } = useGameStore()
   const { setShufflePhase, setShowScoreModal, setShowWinAnimation, setShowWinningHand, setWinnerIndex } = useUIStore()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -25,6 +25,9 @@ export function useGameEngine() {
   }, [])
 
   useEffect(() => {
+    // In network mode the server drives all phase transitions and bot AI
+    if (networkMode) return
+
     const { phase, round, players, humanPlayerIndex } = state
 
     switch (phase) {
@@ -203,6 +206,7 @@ export function useGameEngine() {
 
     return clearTimer
   }, [
+    networkMode,
     state.phase,
     state.round.turnIndex,
     state.round.skipCount,

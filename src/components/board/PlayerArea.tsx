@@ -22,7 +22,7 @@ interface PlayerAreaProps {
 //   → flex-col spacing per tile: 4.6rem (DOM height) + gap-1
 // We use a slightly smaller value so 13 tiles fit on typical screens (≥900px viewport).
 const SIDEWAYS_SIZE      = { width: '5rem',   height: '3.6rem' } as const
-const SIDEWAYS_MELD_SIZE = { width: '6.2rem', height: '4.4rem' } as const
+const SIDEWAYS_MELD_SIZE = { width: '6.2rem', height: '4.6rem' } as const
 
 export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
   const { state } = useGameStore()

@@ -3,15 +3,16 @@ import { useGameStore } from './store/gameStore'
 import { useUIStore } from './store/uiStore'
 import { useGameEngine } from './hooks/useGameEngine'
 import { LandingScreen } from './components/screens/LandingScreen'
+import { LobbyScreen } from './components/screens/LobbyScreen'
 import { GameBoard } from './components/board/GameBoard'
 import { GameOverScreen } from './components/screens/GameOverScreen'
 import { ShuffleAnimation } from './components/animation/ShuffleAnimation'
 
 export default function App() {
-  const { state } = useGameStore()
+  const { state, networkMode } = useGameStore()
   const { shufflePhase } = useUIStore()
 
-  // Run the game engine loop
+  // Run the game engine loop (no-ops in network mode — server drives transitions)
   useGameEngine()
 
   const { phase } = state
@@ -19,7 +20,8 @@ export default function App() {
   // Show shuffle animation during shuffle/dealing phases
   const showShuffle = phase === 'shuffle' || phase === 'dealing' || shufflePhase === 'scattering' || shufflePhase === 'collecting'
 
-  if (phase === 'idle') return <LandingScreen />
+  if (phase === 'idle' && !networkMode) return <LandingScreen />
+  if (phase === 'idle' && networkMode) return <LobbyScreen />
   if (phase === 'game_over') return <GameOverScreen />
 
   return (

@@ -153,22 +153,61 @@ export function playTick() {
   beep({ freq: 900, type: 'sine', volume: 0.22, decay: 0.06 })
 }
 
-/** Speak a word via Web Speech API with a happy upbeat tone */
-export function speak(word: string) {
+// ─── Cantonese speech via Web Speech API ──────────────────────────────────────
+
+let _cantoneseVoice: SpeechSynthesisVoice | null | undefined = undefined
+
+function getCantoneseVoice(): SpeechSynthesisVoice | null {
+  if (_cantoneseVoice !== undefined) return _cantoneseVoice
+  if (typeof window === 'undefined' || !window.speechSynthesis) return null
+  const voices = window.speechSynthesis.getVoices()
+  // Only match true Cantonese voices — zh-TW / generic zh are Mandarin and
+  // would read 食碰槓 in Putonghua, which is worse than Jyutping romanization.
+  _cantoneseVoice =
+    voices.find(v => v.lang === 'zh-HK') ??
+    voices.find(v => v.lang === 'yue-HK') ??
+    voices.find(v => v.lang === 'yue') ??
+    null
+  return _cantoneseVoice
+}
+
+// Re-resolve voice after voices load (browsers load voices async on first call)
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    _cantoneseVoice = undefined  // reset cache so next call re-resolves
+  }
+}
+
+/**
+ * Speak a Cantonese game term.
+ * @param zhText  Chinese characters — used when a Cantonese (zh-HK/yue) voice is available.
+ * @param jyutping Jyutping romanization without tone numbers (from ToJyutping) — used as
+ *                 fallback so English TTS produces a phonetically closer result than Chinese
+ *                 characters read by a Mandarin voice.
+ */
+export function speak(zhText: string, jyutping: string) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return
-  const utt = new SpeechSynthesisUtterance(word)
-  utt.pitch = 1.4
-  utt.rate = 0.9
+  const voice = getCantoneseVoice()
+  const utt = new SpeechSynthesisUtterance(voice ? zhText : jyutping)
+  if (voice) {
+    utt.voice = voice
+    utt.lang = voice.lang
+  }
+  // No lang override on Jyutping fallback — let default English TTS read the
+  // romanization. Setting zh-HK on a Mandarin/English voice would mangle it.
+  utt.pitch = 1.3
+  utt.rate = 0.85
   utt.volume = 1
   window.speechSynthesis.cancel()
   window.speechSynthesis.speak(utt)
 }
 
-export function sayChow()   { speak('Chow!') }
-export function sayPung()   { speak('Pung!') }
-export function sayKong()   { speak('Kong!') }
-export function sayFlower() { speak('Flower!') }
-export function sayWin()    { speak('Win!') }
+// Jyutping (ToJyutping): 食 sik6 · 碰 pung3 · 槓 gong3 · 花 faa1 · 胡牌 wu4 paai4
+export const sayChow   = () => speak('食',   'sik')      // sik6
+export const sayPung   = () => speak('碰',   'pung')     // pung3
+export const sayKong   = () => speak('槓',   'gong')     // gong3
+export const sayFlower = () => speak('花',   'faa')      // faa1
+export const sayWin    = () => speak('胡牌', 'wu paai')  // wu4 paai4
 
 /** Tile-clatter burst — shuffle animation */
 export function playShuffling() {

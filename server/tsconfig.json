@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "ES2020",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "outDir": "../dist/server",
+    "rootDir": "..",
+    "baseUrl": ".."
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
+  "include": ["index.ts", "../src/**/*.ts"],
+  "exclude": ["../src/**/*.test.ts", "../node_modules", "../server/node_modules"]
+}
