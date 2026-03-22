@@ -13,6 +13,17 @@
     "esm": true,
     "experimentalSpecifierResolution": "node"
   },
-  "include": ["index.ts", "../src/**/*.ts"],
-  "exclude": ["../src/**/*.test.ts", "../node_modules", "../server/node_modules"]
+  "include": [
+    "index.ts",
+    "../src/server/**/*.ts",
+    "../src/engine/**/*.ts",
+    "../src/types/**/*.ts",
+    "../src/rulesets/**/*.ts",
+    "../src/ai/**/*.ts"
+  ],
+  "exclude": [
+    "../src/**/*.test.ts",
+    "../node_modules",
+    "../server/node_modules"
+  ]
 }
