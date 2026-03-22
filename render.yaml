@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install && cd server && npm install && npm run build
-    startCommand: node dist/server/server/index.js
+    startCommand: node --experimental-specifier-resolution=node dist/server/server/index.js
     envVars:
       - key: NODE_VERSION
         value: 18

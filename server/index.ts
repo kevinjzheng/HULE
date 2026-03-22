@@ -199,8 +199,8 @@ wss.on('connection', (ws: WebSocket) => {
   })
 })
 
-server.listen(PORT, () => {
-  console.log(`[server] HULE WebSocket server listening on ws://localhost:${PORT}`)
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[server] HULE WebSocket server listening on ws://0.0.0.0:${PORT}`)
 })
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
