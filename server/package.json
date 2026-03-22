@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx index.ts",
-    "build": "tsc -P tsconfig.json",
+    "build": "tsc -P tsconfig.json && node -e \"const fs=require('fs');fs.mkdirSync('../dist/server',{recursive:true});fs.writeFileSync('../dist/server/package.json',JSON.stringify({type:'commonjs'}))\"",
     "start": "node index.js"
   },
   "dependencies": {
