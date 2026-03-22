@@ -1,9 +1,7 @@
-import React from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { useUIStore } from '../../store/uiStore'
 import { WIND_CHARS, tileUnicode, tileKey } from '../../constants/tiles'
 import { getTileImage } from '../../constants/tileImages'
-
 import { GameLog } from './GameLog'
 import { cn } from '../../utils/cn'
 import type { Tile } from '../../types'
@@ -94,11 +92,23 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
     .sort((a, b) => b.score - a.score)
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-1 py-1">
+    <div className="flex h-full min-h-0 gap-1 items-center px-1">
 
-      {/* ── North discards (top zone) ── */}
-      <div className="flex-shrink-0 flex justify-center">
-        <div className="max-w-[55%] w-full">
+      {/* West discards — aligned to inner (right) edge */}
+      <div className="flex-1 min-w-0 flex flex-col items-end pr-2">
+        <DiscardZone
+          discards={players[leftIdx].discards}
+          lastDiscardId={lastDiscardId}
+          label={players[leftIdx].name}
+          className="items-end"
+        />
+      </div>
+
+      {/* ── Center panel — contains top/bottom discards + game info ── */}
+      <div className="flex-shrink-0 flex flex-col items-center gap-1.5 py-1 w-[18rem] self-stretch justify-center">
+
+        {/* Bot 2 (top/North) discards — above round wind */}
+        <div className="w-full border-b border-white/10 pb-1.5">
           <DiscardZone
             discards={players[topIdx].discards}
             lastDiscardId={lastDiscardId}
@@ -106,102 +116,72 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
             className="items-center"
           />
         </div>
-      </div>
 
-      {/* ── Middle row: West | Info+Score | East ── */}
-      <div className="flex flex-1 min-h-0 gap-1 items-center px-1">
-
-        {/* West discards — flex-1, aligned to inner (right) edge so tiles crowd center */}
-        <div className="flex-1 min-w-0 flex flex-col items-end pr-2">
-          <DiscardZone
-            discards={players[leftIdx].discards}
-            lastDiscardId={lastDiscardId}
-            label={players[leftIdx].name}
-            className="items-end"
-          />
+        {/* Prevailing wind + round */}
+        <div className="text-center">
+          <div className="text-4xl font-bold text-yellow-400 drop-shadow-lg leading-none">
+            {windChar}
+          </div>
+          <div className="text-white/60 text-xs mt-0.5">
+            Rd {round.roundNumber + 1}
+            {round.dealerConsecutiveWins > 0 && (
+              <span className="text-red-300 ml-1">+{round.dealerConsecutiveWins}連</span>
+            )}
+          </div>
         </div>
 
-        {/* ── Center panel ── */}
-        <div className="flex-shrink-0 flex flex-col items-center justify-center gap-1.5 py-1 w-[13rem] self-center">
+        {/* Wall tiles remaining */}
+        <div className="flex items-center gap-1.5 bg-black/40 rounded-lg px-3 py-1">
+          <span className="text-white/50 text-xs">牌牆</span>
+          <span className="text-white text-xl font-bold tabular-nums leading-none">
+            {round.wall.length}
+          </span>
+        </div>
 
-          {/* Prevailing wind + round */}
-          <div className="text-center">
-            <div className="text-4xl font-bold text-yellow-400 drop-shadow-lg leading-none">
-              {windChar}
-            </div>
-            <div className="text-white/60 text-xs mt-0.5">
-              Rd {round.roundNumber + 1}
-              {round.dealerConsecutiveWins > 0 && (
-                <span className="text-red-300 ml-1">+{round.dealerConsecutiveWins}連</span>
+        {/* Score Leaderboard */}
+        <div className="w-full max-w-[16rem] bg-black/50 rounded-lg border border-white/10 overflow-hidden">
+          {ranked.map((p, rank) => (
+            <div
+              key={p.id}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1',
+                rank === 0 && 'bg-yellow-400/10',
+                state.round.turnIndex === p.idx && 'bg-white/5',
               )}
-            </div>
-          </div>
-
-          {/* Wall tiles remaining */}
-          <div className="flex items-center gap-1.5 bg-black/40 rounded-lg px-3 py-1">
-            <span className="text-white/50 text-xs">牌牆</span>
-            <span className="text-white text-xl font-bold tabular-nums leading-none">
-              {round.wall.length}
-            </span>
-          </div>
-
-          {/* ── Score Leaderboard — compact ── */}
-          <div className="w-full max-w-[12rem] bg-black/50 rounded-lg border border-white/10 overflow-hidden">
-            {ranked.map((p, rank) => (
-              <div
-                key={p.id}
+            >
+              <span className="text-xs leading-none text-white/40 w-3">
+                {rank + 1}.
+              </span>
+              <span
                 className={cn(
-                  'flex items-center gap-1 px-2 py-1',
-                  rank === 0 && 'bg-yellow-400/10',
-                  state.round.turnIndex === p.idx && 'bg-white/5',
+                  'text-xs font-semibold flex-1 truncate',
+                  rank === 0 ? 'text-yellow-300' : 'text-white/70',
                 )}
               >
-                <span className="text-xs leading-none text-white/40 w-3">
-                  {rank + 1}.
-                </span>
-                <span
-                  className={cn(
-                    'text-xs font-semibold flex-1 truncate',
-                    rank === 0 ? 'text-yellow-300' : 'text-white/70',
-                  )}
-                >
-                  {p.name}
-                  {p.isDealer && <span className="text-red-400 ml-0.5">莊</span>}
-                </span>
-                <span
-                  className={cn(
-                    'text-xs font-bold tabular-nums',
-                    rank === 0 ? 'text-yellow-300' : 'text-white/80',
-                  )}
-                >
-                  {p.score}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Inline game log — shown when enabled in house rules */}
-          {state.ruleSettings.enableGameLog && (
-            <div className="w-full max-w-[12rem]">
-              <GameLog />
+                {p.name}
+                {p.isDealer && <span className="text-red-400 ml-0.5">莊</span>}
+              </span>
+              <span
+                className={cn(
+                  'text-xs font-bold tabular-nums',
+                  rank === 0 ? 'text-yellow-300' : 'text-white/80',
+                )}
+              >
+                {p.score}
+              </span>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* East discards — flex-1, aligned to inner (left) edge so tiles crowd center */}
-        <div className="flex-1 min-w-0 flex flex-col items-start pl-2">
-          <DiscardZone
-            discards={players[rightIdx].discards}
-            lastDiscardId={lastDiscardId}
-            label={players[rightIdx].name}
-            className="items-start"
-          />
-        </div>
-      </div>
+        {/* Inline game log */}
+        {state.ruleSettings.enableGameLog && (
+          <div className="w-full max-w-[16rem]">
+            <GameLog />
+          </div>
+        )}
 
-      {/* ── South discards (bottom zone) ── */}
-      <div className="flex-shrink-0 flex justify-center">
-        <div className="max-w-[55%] w-full">
+        {/* Player 1 (bottom/South) discards — below game log */}
+        <div className="w-full border-t border-white/10 pt-1.5">
           <DiscardZone
             discards={players[bottomIdx].discards}
             lastDiscardId={lastDiscardId}
@@ -209,6 +189,16 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
             className="items-center"
           />
         </div>
+      </div>
+
+      {/* East discards — aligned to inner (left) edge */}
+      <div className="flex-1 min-w-0 flex flex-col items-start pl-2">
+        <DiscardZone
+          discards={players[rightIdx].discards}
+          lastDiscardId={lastDiscardId}
+          label={players[rightIdx].name}
+          className="items-start"
+        />
       </div>
 
     </div>

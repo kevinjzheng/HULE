@@ -135,7 +135,6 @@ function handleDealComplete(state: GameState): GameState {
       let drawn = wallLeft.shift()!
       while (drawn.suit === 'bonus' && wallLeft.length > 0) {
         extra.push(drawn)
-        bonusCount++
         drawn = wallLeft.shift()!
       }
       if (drawn.suit !== 'bonus') extra.push(drawn)

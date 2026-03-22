@@ -8,6 +8,7 @@ import { TileComponent } from '../tiles/TileComponent'
 import type { Tile } from '../../types'
 import { playDiscard, playWin, playKong, sayChow, sayPung, sayKong, sayWin } from '../../utils/sounds'
 import { TurnTimer } from '../board/TurnTimer'
+import { ClaimTimer } from '../board/ClaimTimer'
 
 export function ActionBar() {
   const { state, dispatch } = useGameStore()
@@ -133,6 +134,12 @@ export function ActionBar() {
 
     return (
       <div className="flex flex-wrap gap-2 justify-center items-center">
+        <ClaimTimer
+          onExpire={() => {
+            dispatch({ type: 'SKIP_CLAIM', playerIndex: humanPlayerIndex })
+            setShowChowOptions(false)
+          }}
+        />
         {pendingClaim.canWin && (
           <ActionButton
             label="胡 WIN"
