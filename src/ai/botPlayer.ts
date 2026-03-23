@@ -30,6 +30,13 @@ export function botSelectDiscard(player: Player, state: GameState): Tile {
       const count = hand.filter(t => tilesEqual(t, tile)).length
       if (count === 1) score -= 1
     }
+    // Preserve connected tiles (sequence potential)
+    if (!isHonor(tile)) {
+      const sameSuit = hand.filter(t => t.id !== tile.id && t.suit === tile.suit)
+      const connected = sameSuit.filter(t => Math.abs(t.value - tile.value) <= 2).length
+      if (connected >= 2) score += 2      // strong sequence: keep it
+      else if (connected === 1) score += 0.5  // weak connection: slight preference to keep
+    }
     // Defensive: don't discard tiles that others have punged
     const otherDiscards = state.players
       .filter((_, i) => i !== state.players.indexOf(player))
@@ -71,34 +78,38 @@ export function botDecideClaim(
     return { type: 'CLAIM_KONG', playerIndex }
   }
 
-  // Consider pung
+  const shantenBefore = shantenNumber(player.hand, player.melds)
+
+  // Evaluate pung
+  let pungShanten = Infinity
   if (claim.canPung) {
-    const testMeld: Meld = {
-      type: 'pung',
-      tiles: [discardedTile, discardedTile, discardedTile],
-      concealed: false,
-    }
     const pungTiles = getPungTiles(player.hand, discardedTile)!
     const handAfterPung = player.hand.filter(t => !pungTiles.some(pt => pt.id === t.id))
-    const shantenBefore = shantenNumber(player.hand, player.melds)
-    const shantenAfter = shantenNumber(handAfterPung, [...player.melds, testMeld])
-    if (shantenAfter <= shantenBefore) {
-      return { type: 'CLAIM_PUNG', playerIndex }
+    const testMeld: Meld = { type: 'pung', tiles: [pungTiles[0], pungTiles[1], discardedTile], concealed: false }
+    pungShanten = shantenNumber(handAfterPung, [...player.melds, testMeld])
+  }
+
+  // Evaluate best chow (all options)
+  let bestChow: [Tile, Tile] | null = null
+  let chowShanten = Infinity
+  if (claim.canChow && claim.canChow.length > 0) {
+    for (const opt of claim.canChow) {
+      const handAfter = player.hand.filter(t => !opt.some(bt => bt.id === t.id))
+      const testMeld: Meld = { type: 'chow', tiles: [...opt, discardedTile], concealed: false }
+      const s = shantenNumber(handAfter, [...player.melds, testMeld])
+      if (s < chowShanten) { chowShanten = s; bestChow = opt as [Tile, Tile] }
     }
   }
 
-  // Consider chow (only left player)
-  if (claim.canChow && claim.canChow.length > 0) {
-    const chowOpts = claim.canChow
-    // Pick best chow option (simplistic: first one)
-    const best = chowOpts[0]
-    const shantenBefore = shantenNumber(player.hand, player.melds)
-    const handAfter = player.hand.filter(t => !best.some(bt => bt.id === t.id))
-    const testMeld: Meld = { type: 'chow', tiles: [...best, discardedTile], concealed: false }
-    const shantenAfter = shantenNumber(handAfter, [...player.melds, testMeld])
-    if (shantenAfter < shantenBefore) {
-      return { type: 'CLAIM_CHOW', playerIndex, chowTiles: best as [Tile, Tile] }
-    }
+  // Prefer whichever reduces shanten more; tie-break: pung (more flexible for scoring)
+  if (chowShanten < pungShanten && chowShanten <= shantenBefore && bestChow) {
+    return { type: 'CLAIM_CHOW', playerIndex, chowTiles: bestChow }
+  }
+  if (pungShanten <= shantenBefore) {
+    return { type: 'CLAIM_PUNG', playerIndex }
+  }
+  if (chowShanten <= shantenBefore && bestChow) {
+    return { type: 'CLAIM_CHOW', playerIndex, chowTiles: bestChow }
   }
 
   return null  // skip
