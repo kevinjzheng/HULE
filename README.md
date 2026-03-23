@@ -2,6 +2,12 @@
 
 A browser-based Hong Kong Mahjong (廣東麻雀) game built with React, TypeScript, and the Web Audio API. Play as one human against three AI-controlled bots with authentic fan-based scoring, configurable house rules, and a fully animated table.
 
+## Play Online
+
+**https://hule.vercel.app/**
+
+Single-player (vs bots) runs entirely in the browser. For online multiplayer with up to 4 players, open the link above, go to the **Multiplayer** tab, and share the room code with friends.
+
 ---
 
 ## What is Hong Kong Mahjong?

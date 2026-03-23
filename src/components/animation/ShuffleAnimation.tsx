@@ -105,7 +105,10 @@ function ShuffleCanvas({ shufflePhase }: { shufflePhase: ShufflePhase }) {
     const cy0 = H / 2
 
     const tick = () => {
-      ctx.clearRect(0, 0, W, H)
+      // Fill background explicitly — don't rely on CSS transparency which
+      // can render as white in some GPU compositing environments
+      ctx.fillStyle = '#1b4332'
+      ctx.fillRect(0, 0, W, H)
 
       const cx = cursorRef.current.x
       const cy = cursorRef.current.y
