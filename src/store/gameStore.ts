@@ -44,8 +44,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setNetworkState: (state: GameState) => set({ state }),
 
-  setNetworkMode: (on: boolean, seatIndex = 0, roomId: string | null = null, token: string | null = null) =>
-    set({ networkMode: on, networkSeatIndex: seatIndex, roomId, token }),
+  setNetworkMode: (on: boolean, seatIndex = 0, roomId: string | null = null, token: string | null = null) => {
+    if (on && roomId && token) {
+      sessionStorage.setItem('hule_roomId', roomId)
+      sessionStorage.setItem('hule_token', token)
+    } else {
+      sessionStorage.removeItem('hule_roomId')
+      sessionStorage.removeItem('hule_token')
+    }
+    set({ networkMode: on, networkSeatIndex: seatIndex, roomId, token })
+  },
 
   setNetworkSend: (fn) => set({ _networkSend: fn }),
   setNetworkError: (err) => set({ networkError: err }),

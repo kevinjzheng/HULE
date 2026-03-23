@@ -25,14 +25,13 @@ export function useGameEngine() {
   }, [])
 
   useEffect(() => {
-    // In network mode the server drives all phase transitions and bot AI
-    if (networkMode) return
-
     const { phase, round, players, humanPlayerIndex } = state
 
-    switch (phase) {
-      case 'shuffle': {
-        setShufflePhase('scattering')
+    // Shuffle animation runs in both solo and network mode.
+    // In network mode we only drive the visual phases — the server handles game dispatches.
+    if (phase === 'shuffle') {
+      setShufflePhase('scattering')
+      if (!networkMode) {
         schedule(() => {
           setShufflePhase('collecting')
           setTimeout(() => {
@@ -40,16 +39,30 @@ export function useGameEngine() {
             dispatch({ type: 'SHUFFLE_COMPLETE' })
           }, 1800)
         }, 2500)
-        break
       }
+      return clearTimer
+    }
 
-      case 'dealing': {
+    if (phase === 'dealing') {
+      if (networkMode) {
+        setShufflePhase('dealing')
+      } else {
         schedule(() => {
           dispatch({ type: 'DEAL_COMPLETE' })
           setShufflePhase('complete')
         }, 1500)
-        break
       }
+      return clearTimer
+    }
+
+    // In network mode the server drives all other phase transitions and bot AI.
+    // Complete the shuffle animation once the game starts playing.
+    if (networkMode) {
+      setShufflePhase('complete')
+      return
+    }
+
+    switch (phase) {
 
       case 'playing': {
         schedule(() => {
