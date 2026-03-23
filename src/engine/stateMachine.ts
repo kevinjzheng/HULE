@@ -294,9 +294,18 @@ function handleClaimChow(state: GameState, action: GameAction): GameState {
     claimedFrom: round.lastDiscardBy ?? undefined,
   }
 
-  const updatedPlayers = players.map((p, i) =>
-    i === pi ? { ...p, hand: newHand, melds: [...p.melds, meld], drawnTile: null } : p
-  )
+  const discardingIdx = round.lastDiscardBy!
+  const updatedPlayers = players.map((p, i) => {
+    if (i === pi) return { ...p, hand: newHand, melds: [...p.melds, meld], drawnTile: null }
+    if (i === discardingIdx) {
+      const discards = [...p.discards]
+      for (let j = discards.length - 1; j >= 0; j--) {
+        if (tilesEqual(discards[j], lastDiscard)) { discards.splice(j, 1); break }
+      }
+      return { ...p, discards }
+    }
+    return p
+  })
 
   return {
     ...state,
@@ -328,9 +337,18 @@ function handleClaimPung(state: GameState, action: GameAction): GameState {
     claimedFrom: round.lastDiscardBy ?? undefined,
   }
 
-  const updatedPlayers = players.map((p, i) =>
-    i === pi ? { ...p, hand: newHand, melds: [...p.melds, meld], drawnTile: null } : p
-  )
+  const discardingIdx = round.lastDiscardBy!
+  const updatedPlayers = players.map((p, i) => {
+    if (i === pi) return { ...p, hand: newHand, melds: [...p.melds, meld], drawnTile: null }
+    if (i === discardingIdx) {
+      const discards = [...p.discards]
+      for (let j = discards.length - 1; j >= 0; j--) {
+        if (tilesEqual(discards[j], lastDiscard)) { discards.splice(j, 1); break }
+      }
+      return { ...p, discards }
+    }
+    return p
+  })
 
   return {
     ...state,
@@ -361,9 +379,18 @@ function handleClaimKong(state: GameState, action: GameAction): GameState {
     claimedFrom: round.lastDiscardBy ?? undefined,
   }
 
-  const updatedPlayers = players.map((p, i) =>
-    i === pi ? { ...p, hand: newHand, melds: [...p.melds, meld], drawnTile: null } : p
-  )
+  const discardingIdx = round.lastDiscardBy!
+  const updatedPlayers = players.map((p, i) => {
+    if (i === pi) return { ...p, hand: newHand, melds: [...p.melds, meld], drawnTile: null }
+    if (i === discardingIdx) {
+      const discards = [...p.discards]
+      for (let j = discards.length - 1; j >= 0; j--) {
+        if (tilesEqual(discards[j], lastDiscard)) { discards.splice(j, 1); break }
+      }
+      return { ...p, discards }
+    }
+    return p
+  })
 
   return {
     ...state,

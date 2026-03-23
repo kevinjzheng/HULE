@@ -1,6 +1,35 @@
 import { useCallback } from 'react'
 import { useGameStore } from '../store/gameStore'
 import type { ClientMessage, ServerMessage } from '../types/network'
+import type { GameState } from '../types'
+import { sayPung, sayChow, sayKong, sayFlower, sayWin, sayZimo, playDraw, playDiscard } from '../utils/sounds'
+
+function triggerNetworkSounds(prev: GameState, next: GameState) {
+  for (let i = 0; i < next.players.length; i++) {
+    const prevMelds = prev.players[i]?.melds.length ?? 0
+    const nextMelds = next.players[i]?.melds.length ?? 0
+    if (nextMelds > prevMelds) {
+      const newMeld = next.players[i].melds[nextMelds - 1]
+      if (newMeld.type === 'pung') sayPung()
+      else if (newMeld.type === 'chow') sayChow()
+      else if (newMeld.type === 'kong') { sayKong() }
+    }
+    const prevBonus = prev.players[i]?.bonusTiles.length ?? 0
+    const nextBonus = next.players[i]?.bonusTiles.length ?? 0
+    if (nextBonus > prevBonus) sayFlower()
+  }
+  if (next.phase === 'scoring' && prev.phase !== 'scoring') {
+    const result = next.roundHistory[next.roundHistory.length - 1]
+    if (result?.loser === null && result?.winner !== null) sayZimo()
+    else sayWin()
+  }
+  if (next.phase === 'awaiting_discard' && prev.phase !== 'awaiting_discard') {
+    playDraw()
+  }
+  if (next.round.lastDiscard && !prev.round.lastDiscard) {
+    playDiscard()
+  }
+}
 
 const WS_URL = (() => {
   // VITE_WS_URL is set in Vercel env vars to point to the Render.com backend
@@ -40,9 +69,12 @@ export function useGameSocket() {
           setNetworkState(msg.state)
           break
 
-        case 'STATE_UPDATE':
+        case 'STATE_UPDATE': {
+          const prevState = useGameStore.getState().state
           setNetworkState(msg.state)
+          triggerNetworkSounds(prevState, msg.state)
           break
+        }
 
         case 'ERROR':
           setNetworkError(msg.message)

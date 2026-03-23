@@ -173,16 +173,20 @@ const _TTS_BASE = (() => {
 })()
 
 // Probe TTS availability once at module load with a 2-second timeout.
-// After the probe resolves, speak() never waits on a dead server.
+// After the probe resolves, speak() skips the fetch until the retry cooldown expires.
 let _ttsAvailable: boolean | null = null
+let _ttsLastFailTime = 0
+const TTS_RETRY_COOLDOWN = 30_000
 ;(async () => {
   try {
     const ac = new AbortController()
     setTimeout(() => ac.abort(), 2000)
     const res = await fetch(`${_TTS_BASE}/tts?text=%E7%A2%B0`, { signal: ac.signal })
     _ttsAvailable = res.ok
+    if (!res.ok) _ttsLastFailTime = Date.now()
   } catch {
     _ttsAvailable = false
+    _ttsLastFailTime = Date.now()
   }
 })()
 
@@ -223,7 +227,6 @@ function speakWebSpeech(zhText: string, _phonetic: string) {
   utt.pitch = 1.1
   utt.rate = 0.9
   utt.volume = 1
-  console.log('[TTS] Web Speech fallback:', voice ? zhText : _phonetic, '| voice:', voice?.name ?? 'default', '| lang:', utt.lang || 'default')
   window.speechSynthesis.cancel()
   window.speechSynthesis.speak(utt)
 }
@@ -240,9 +243,8 @@ function speakWebSpeech(zhText: string, _phonetic: string) {
  *                 voice is available (e.g. 'pung', 'gong', 'wu pai')
  */
 export async function speak(zhText: string, phonetic: string): Promise<void> {
-  // Skip fetch entirely if the server is already known to be unavailable
-  if (_ttsAvailable === false) {
-    console.log('[TTS] server unavailable, using Web Speech for:', zhText)
+  // Skip fetch if server is known unavailable and retry cooldown hasn't expired
+  if (_ttsAvailable === false && Date.now() - _ttsLastFailTime < TTS_RETRY_COOLDOWN) {
     speakWebSpeech(zhText, phonetic)
     return
   }
@@ -264,7 +266,8 @@ export async function speak(zhText: string, phonetic: string): Promise<void> {
     source.connect(ctx().destination)
     source.start()
   } catch {
-    _ttsAvailable = false  // mark unavailable so future calls skip the fetch
+    _ttsAvailable = false
+    _ttsLastFailTime = Date.now()
     speakWebSpeech(zhText, phonetic)
   }
 }

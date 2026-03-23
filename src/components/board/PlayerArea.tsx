@@ -145,7 +145,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
 
       {/* ── Exposed melds ── */}
       {player.melds.length > 0 && (
-        <div className="flex gap-0.5 flex-wrap justify-center">
+        <div className="flex gap-0.5 flex-wrap justify-center px-2 py-1 rounded bg-black/20 border border-white/10">
           {player.melds.map((meld, mi) => (
             <div key={mi} className="flex gap-0.5">
               {meld.tiles.map((t, ti) => (
