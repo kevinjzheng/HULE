@@ -99,19 +99,23 @@ function handleShuffleComplete(state: GameState): GameState {
   return { ...state, phase: 'dealing' }
 }
 
+const MAX_LOG_ENTRIES = 200
+
 function log(state: GameState, playerIndex: number, message: string): GameLogEntry[] {
   if (!state.ruleSettings.enableGameLog) return state.gameLog
   const now = new Date()
   const h = now.getHours().toString().padStart(2, '0')
   const m = now.getMinutes().toString().padStart(2, '0')
   const s = now.getSeconds().toString().padStart(2, '0')
-  return [...state.gameLog, {
+  const entry: GameLogEntry = {
     id: Date.now() + Math.random(),
     playerIndex,
     playerName: state.players[playerIndex]?.name ?? '',
     message,
     timestamp: `${h}:${m}:${s}`,
-  }]
+  }
+  const updated = [...state.gameLog, entry]
+  return updated.length > MAX_LOG_ENTRIES ? updated.slice(-MAX_LOG_ENTRIES) : updated
 }
 
 function handleDealComplete(state: GameState): GameState {
