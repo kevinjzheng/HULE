@@ -7,7 +7,7 @@ import { groupTiles } from '../../engine/handAnalyzer'
 
 const LIMIT_FAN = 13
 
-const FAN_TABLE: Fan[] = [
+export const FAN_TABLE: Fan[] = [
   // Limit hands
   { id: 'thirteen_orphans',     nameEn: 'Thirteen Orphans',      nameZh: '十三么',   fan: LIMIT_FAN, isLimit: true },
   { id: 'nine_gates',           nameEn: 'Nine Gates',            nameZh: '九蓮寶燈', fan: LIMIT_FAN, isLimit: true },

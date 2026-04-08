@@ -44,6 +44,8 @@ export interface Player {
 
 // ─── Rule settings ────────────────────────────────────────────────────────────
 
+export type ComfortLevel = 'beginner' | 'experienced'
+
 export interface RuleSettings {
   minFanToWin: number        // 0 = none, 1 = at least 1 fan, 3 = common HK standard
   sevenPairs: boolean        // allow 七對子 as winning hand
@@ -51,8 +53,10 @@ export interface RuleSettings {
   noBonusFan: boolean        // award +1 fan when winner has no bonus tiles
   multipleWinners: boolean   // allow multiple players to win on the same discard
   turnTimeLimit: number      // seconds per turn for human, 0 = no limit
+  actionTimeLimit: number    // seconds to respond to Pung/Chow/Kong/Win, 0 = no limit
   pointsPerFan: number       // points awarded per fan (e.g. 1 = 3 fans → 3 pts)
   enableGameLog: boolean     // show a scrollable action log on the board
+  comfortLevel: ComfortLevel // beginner = eligible tile highlights; experienced = no hints
 }
 
 export const DEFAULT_RULES: RuleSettings = {
@@ -62,8 +66,10 @@ export const DEFAULT_RULES: RuleSettings = {
   noBonusFan: false,
   multipleWinners: true,
   turnTimeLimit: 45,
+  actionTimeLimit: 10,
   pointsPerFan: 1,
   enableGameLog: false,
+  comfortLevel: 'experienced',
 }
 
 // ─── Game state ───────────────────────────────────────────────────────────────
