@@ -24,7 +24,7 @@ function DiscardTile({ tile, isLast }: { tile: Tile; isLast?: boolean }) {
       className={cn(
         'inline-flex items-center justify-center rounded overflow-hidden',
         'select-none flex-shrink-0',
-        'w-[2.5rem] h-[3.4rem]',
+        'w-[1.7rem] h-[2.3rem] md:w-[2.1rem] md:h-[2.9rem] lg:w-[2.5rem] lg:h-[3.4rem]',
         isLast && 'ring-2 ring-red-400',
         isHovered && 'ring-2 ring-sky-400 brightness-125',
       )}
@@ -105,7 +105,7 @@ export function CenterArea({ topIdx, bottomIdx, leftIdx, rightIdx }: CenterAreaP
       </div>
 
       {/* ── Center panel — contains top/bottom discards + game info ── */}
-      <div className="flex-shrink-0 flex flex-col items-center gap-1.5 py-1 w-[18rem] self-stretch justify-center">
+      <div className="flex-shrink-0 flex flex-col items-center gap-1.5 py-1 w-[12rem] md:w-[15rem] lg:w-[18rem] self-stretch justify-center">
 
         {/* Bot 2 (top/North) discards — above round wind */}
         <div className="w-full border-b border-white/10 pb-1.5">

@@ -3,29 +3,28 @@ import { useGameStore } from '../../store/gameStore'
 import { playTick } from '../../utils/sounds'
 import { cn } from '../../utils/cn'
 
-const CLAIM_SECONDS = 10
-
 interface ClaimTimerProps {
   onExpire: () => void
 }
 
 export function ClaimTimer({ onExpire }: ClaimTimerProps) {
   const { state } = useGameStore()
-  const { phase, round } = state
-  const [secondsLeft, setSecondsLeft] = useState(CLAIM_SECONDS)
+  const { phase, round, ruleSettings } = state
+  const limitSeconds = ruleSettings.actionTimeLimit
+  const [secondsLeft, setSecondsLeft] = useState(limitSeconds)
   const onExpireRef = useRef(onExpire)
   onExpireRef.current = onExpire
 
   // Reset whenever we enter awaiting_action or pending claims change
   useEffect(() => {
     if (phase === 'awaiting_action') {
-      setSecondsLeft(CLAIM_SECONDS)
+      setSecondsLeft(limitSeconds)
     }
-  }, [phase, round.skipCount])
+  }, [phase, round.skipCount, limitSeconds])
 
   // Countdown
   useEffect(() => {
-    if (phase !== 'awaiting_action') return
+    if (phase !== 'awaiting_action' || limitSeconds === 0) return
 
     const id = setInterval(() => {
       setSecondsLeft(prev => {
@@ -41,9 +40,9 @@ export function ClaimTimer({ onExpire }: ClaimTimerProps) {
     }, 1000)
 
     return () => clearInterval(id)
-  }, [phase, round.skipCount])
+  }, [phase, round.skipCount, limitSeconds])
 
-  if (phase !== 'awaiting_action') return null
+  if (phase !== 'awaiting_action' || limitSeconds === 0) return null
 
   const isUrgent = secondsLeft <= 5
 

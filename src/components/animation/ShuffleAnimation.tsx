@@ -20,19 +20,24 @@ const TILE_W = 52
 const TILE_H = 72
 const NUM_TILES = 80
 const REPULSION_RADIUS = 140
-const MAX_FORCE = 16
+const MAX_FORCE = 12
 
 function createParticles(W: number, H: number): Particle[] {
   const particles: Particle[] = []
+  // Spawn in a central cluster (~35% of screen dimensions) so tiles start together
+  const spawnW = W * 0.35
+  const spawnH = H * 0.35
+  const cx = W / 2
+  const cy = H / 2
   for (let i = 0; i < NUM_TILES; i++) {
     particles.push({
       id: i,
-      x: TILE_W + Math.random() * (W - TILE_W * 2),
-      y: TILE_H + Math.random() * (H - TILE_H * 2),
-      vx: (Math.random() - 0.5) * 5,
-      vy: (Math.random() - 0.5) * 5,
+      x: cx + (Math.random() - 0.5) * spawnW,
+      y: cy + (Math.random() - 0.5) * spawnH,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
       rotation: (Math.random() - 0.5) * 50,
-      rotV: (Math.random() - 0.5) * 1.5,
+      rotV: (Math.random() - 0.5) * 1,
     })
   }
   return particles
@@ -99,7 +104,7 @@ function ShuffleCanvas({ shufflePhase }: { shufflePhase: ShufflePhase }) {
     if (phaseRef.current === 'scattering') playShuffling()
     const shuffleInterval = setInterval(() => {
       if (phaseRef.current === 'scattering') playShuffling()
-    }, 600)
+    }, 1100)
 
     const cx0 = W / 2
     const cy0 = H / 2
@@ -129,16 +134,22 @@ function ShuffleCanvas({ shufflePhase }: { shufflePhase: ShufflePhase }) {
           const dy = p.y - cy
           const d = Math.sqrt(dx * dx + dy * dy) + 0.1
           if (d < REPULSION_RADIUS) {
-            const force = ((REPULSION_RADIUS - d) / REPULSION_RADIUS) * MAX_FORCE
-            p.vx += (dx / d) * force
-            p.vy += (dy / d) * force
+            const strength = ((REPULSION_RADIUS - d) / REPULSION_RADIUS)
+            // Soft quadratic falloff so tiles near the edge barely move
+            const radialForce  = strength * strength * MAX_FORCE * 0.4
+            const tangForce    = strength * MAX_FORCE * 0.75
+            // Alternate swirl direction per tile — chaotic mixing, not a whirlpool
+            const swirl = (p.id % 2 === 0) ? 1 : -1
+            p.vx += (dx / d) * radialForce + (-dy / d) * tangForce * swirl
+            p.vy += (dy / d) * radialForce + ( dx / d) * tangForce * swirl
           }
-          p.vx *= 0.97
-          p.vy *= 0.97
-          if (p.x < TILE_W / 2)     p.vx = Math.abs(p.vx) * 0.6
-          if (p.x > W - TILE_W / 2) p.vx = -Math.abs(p.vx) * 0.6
-          if (p.y < TILE_H / 2)     p.vy = Math.abs(p.vy) * 0.6
-          if (p.y > H - TILE_H / 2) p.vy = -Math.abs(p.vy) * 0.6
+          p.vx *= 0.90
+          p.vy *= 0.90
+          p.rotV *= 0.75
+          if (p.x < TILE_W / 2)     p.vx = Math.abs(p.vx) * 0.5
+          if (p.x > W - TILE_W / 2) p.vx = -Math.abs(p.vx) * 0.5
+          if (p.y < TILE_H / 2)     p.vy = Math.abs(p.vy) * 0.5
+          if (p.y > H - TILE_H / 2) p.vy = -Math.abs(p.vy) * 0.5
         }
 
         p.x += p.vx

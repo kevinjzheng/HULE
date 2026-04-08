@@ -22,11 +22,13 @@ const TEST_RULES: RuleSettings = {
   minFanToWin: 0,
   pointsPerFan: 1,
   turnTimeLimit: 0,
+  actionTimeLimit: 10,
   flowers: true,
   sevenPairs: true,
   noBonusFan: false,
   multipleWinners: false,
   enableGameLog: false,
+  comfortLevel: 'experienced',
 }
 
 function makeRoom() {

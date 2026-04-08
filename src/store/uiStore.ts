@@ -7,6 +7,7 @@ interface UIStore {
   showScoreModal: boolean
   showWinAnimation: boolean
   showWinningHand: boolean
+  showScoringGuide: boolean
   winnerIndex: number | null
   selectedTileId: string | null
   cursorPos: { x: number; y: number }
@@ -17,6 +18,7 @@ interface UIStore {
   setShowScoreModal: (v: boolean) => void
   setShowWinAnimation: (v: boolean) => void
   setShowWinningHand: (v: boolean) => void
+  setShowScoringGuide: (v: boolean) => void
   setWinnerIndex: (i: number | null) => void
   setSelectedTileId: (id: string | null) => void
   setCursorPos: (pos: { x: number; y: number }) => void
@@ -29,6 +31,7 @@ export const useUIStore = create<UIStore>((set) => ({
   showScoreModal: false,
   showWinAnimation: false,
   showWinningHand: false,
+  showScoringGuide: false,
   winnerIndex: null,
   selectedTileId: null,
   cursorPos: { x: 0, y: 0 },
@@ -39,6 +42,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setShowScoreModal: (v) => set({ showScoreModal: v }),
   setShowWinAnimation: (v) => set({ showWinAnimation: v }),
   setShowWinningHand: (v) => set({ showWinningHand: v }),
+  setShowScoringGuide: (v) => set({ showScoringGuide: v }),
   setWinnerIndex: (i) => set({ winnerIndex: i }),
   setSelectedTileId: (id) => set({ selectedTileId: id }),
   setCursorPos: (pos) => set({ cursorPos: pos }),

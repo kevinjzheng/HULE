@@ -172,23 +172,11 @@ const _TTS_BASE = (() => {
   return ''
 })()
 
-// Probe TTS availability once at module load with a 2-second timeout.
-// After the probe resolves, speak() skips the fetch until the retry cooldown expires.
+// Availability is determined lazily on the first speak() call.
+// null = unknown (will try server), true = confirmed working, false = failed (retry after cooldown)
 let _ttsAvailable: boolean | null = null
 let _ttsLastFailTime = 0
 const TTS_RETRY_COOLDOWN = 30_000
-;(async () => {
-  try {
-    const ac = new AbortController()
-    setTimeout(() => ac.abort(), 2000)
-    const res = await fetch(`${_TTS_BASE}/tts?text=%E7%A2%B0`, { signal: ac.signal })
-    _ttsAvailable = res.ok
-    if (!res.ok) _ttsLastFailTime = Date.now()
-  } catch {
-    _ttsAvailable = false
-    _ttsLastFailTime = Date.now()
-  }
-})()
 
 // Client-side AudioBuffer cache — avoids re-fetching the same term
 const _ttsCache = new Map<string, AudioBuffer>()
@@ -242,6 +230,19 @@ function speakWebSpeech(zhText: string, _phonetic: string) {
  * @param phonetic English phonetic spelling used only when no server or Chinese
  *                 voice is available (e.g. 'pung', 'gong', 'wu pai')
  */
+async function fetchTTSBuffer(zhText: string): Promise<AudioBuffer> {
+  const cached = _ttsCache.get(zhText)
+  if (cached) return cached
+  const ac = new AbortController()
+  setTimeout(() => ac.abort(), 5000)
+  const res = await fetch(`${_TTS_BASE}/tts?text=${encodeURIComponent(zhText)}`, { signal: ac.signal })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const arrayBuf = await res.arrayBuffer()
+  const audioBuffer = await ctx().decodeAudioData(arrayBuf)
+  _ttsCache.set(zhText, audioBuffer)
+  return audioBuffer
+}
+
 export async function speak(zhText: string, phonetic: string): Promise<void> {
   // Skip fetch if server is known unavailable and retry cooldown hasn't expired
   if (_ttsAvailable === false && Date.now() - _ttsLastFailTime < TTS_RETRY_COOLDOWN) {
@@ -250,16 +251,7 @@ export async function speak(zhText: string, phonetic: string): Promise<void> {
   }
 
   try {
-    let audioBuffer = _ttsCache.get(zhText)
-    if (!audioBuffer) {
-      const ac = new AbortController()
-      setTimeout(() => ac.abort(), 3000)
-      const res = await fetch(`${_TTS_BASE}/tts?text=${encodeURIComponent(zhText)}`, { signal: ac.signal })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const arrayBuf = await res.arrayBuffer()
-      audioBuffer = await ctx().decodeAudioData(arrayBuf)
-      _ttsCache.set(zhText, audioBuffer)
-    }
+    const audioBuffer = await fetchTTSBuffer(zhText)
     _ttsAvailable = true
     const source = ctx().createBufferSource()
     source.buffer = audioBuffer
@@ -279,15 +271,30 @@ export const sayFlower = () => speak('花牌', 'faa paai')
 export const sayWin    = () => speak('食糊', 'sik wu')
 export const sayZimo   = () => speak('自摸', 'zi mo')
 
+const TTS_ALL_TERMS = ['上', '碰', '槓', '花牌', '食糊', '自摸']
+
+/**
+ * Pre-fetch all TTS audio into the client cache (no playback).
+ * Call once at game start (after a user gesture has unlocked AudioContext).
+ * Failures are silently ignored — speak() will retry on demand.
+ */
+export function warmTTS() {
+  for (const zh of TTS_ALL_TERMS) {
+    fetchTTSBuffer(zh)
+      .then(() => { _ttsAvailable = true })
+      .catch(() => { _ttsAvailable = false; _ttsLastFailTime = Date.now() })
+  }
+}
+
 /** Tile-clatter burst — shuffle animation */
 export function playShuffling() {
   // White noise bursts through a bandpass filter — sounds like ceramic tiles clacking
-  const bursts = 6
+  const bursts = 4
   for (let i = 0; i < bursts; i++) {
-    const delay = i * 0.05 + Math.random() * 0.02
+    const delay = i * 0.10 + Math.random() * 0.03
     // Low thud component
-    noiseBlast({ volume: 0.32 + Math.random() * 0.12, decay: 0.07, hpFreq: 400, lpFreq: 3000, delay })
+    noiseBlast({ volume: 0.13 + Math.random() * 0.05, decay: 0.07, hpFreq: 400, lpFreq: 3000, delay })
     // High click component
-    noiseBlast({ volume: 0.2 + Math.random() * 0.08, decay: 0.03, hpFreq: 3000, delay: delay + 0.005 })
+    noiseBlast({ volume: 0.08 + Math.random() * 0.03, decay: 0.03, hpFreq: 3000, delay: delay + 0.005 })
   }
 }

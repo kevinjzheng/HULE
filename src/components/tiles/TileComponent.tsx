@@ -11,6 +11,7 @@ interface TileComponentProps {
   faceDown?: boolean
   selected?: boolean
   highlight?: boolean
+  eligible?: boolean
   small?: boolean
   medium?: boolean
   onClick?: () => void
@@ -23,6 +24,7 @@ export function TileComponent({
   faceDown = false,
   selected = false,
   highlight = false,
+  eligible = false,
   small = false,
   medium = false,
   onClick,
@@ -44,7 +46,7 @@ export function TileComponent({
     ? 'w-10 h-14'
     : medium
       ? 'w-[3.2rem] h-[4.4rem]'
-      : 'w-[4.6rem] h-[6.2rem]'
+      : 'w-8 h-11 md:w-[3.2rem] md:h-[4.4rem] tablet-land:w-[3.8rem] tablet-land:h-[5.2rem] lg:w-[4.6rem] lg:h-[6.2rem]'
 
   const handleMouseEnter = () => {
     setHoveredTileKey(key)
@@ -71,9 +73,11 @@ export function TileComponent({
           ? 'ring-2 ring-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
           : selected
             ? 'ring-2 ring-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]'
-            : isCrossHighlighted
-              ? 'ring-2 ring-sky-400 brightness-110'
-              : '',
+            : eligible
+              ? 'ring-2 ring-amber-300 shadow-[0_0_12px_3px_rgba(251,191,36,0.7)] brightness-110 animate-eligible-pulse'
+              : isCrossHighlighted
+                ? 'ring-2 ring-sky-400 brightness-110'
+                : '',
         onClick && 'cursor-pointer hover:-translate-y-2',
         selected && '-translate-y-5',
         className,
@@ -131,7 +135,7 @@ export function TileBack({
     ? 'w-10 h-14'
     : medium
       ? 'w-[3.2rem] h-[4.4rem]'
-      : 'w-[4.6rem] h-[6.2rem]'
+      : 'w-8 h-11 md:w-[3.2rem] md:h-[4.4rem] tablet-land:w-[3.8rem] tablet-land:h-[5.2rem] lg:w-[4.6rem] lg:h-[6.2rem]'
 
   return (
     <div

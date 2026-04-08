@@ -30,10 +30,20 @@ module.exports = {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.3' },
         },
+        'eligible-pulse': {
+          '0%, 100%': { boxShadow: '0 0 6px 2px rgba(251,191,36,0.35)' },
+          '50%': { boxShadow: '0 0 18px 5px rgba(251,191,36,0.85)' },
+        },
       },
       animation: {
         'tile-draw': 'tile-draw 0.3s ease-out',
         'win-flash': 'win-flash 0.6s ease-in-out 3',
+        'eligible-pulse': 'eligible-pulse 2s ease-in-out infinite',
+      },
+      screens: {
+        // Tablet landscape: wide enough to trigger lg, but vertical space is limited.
+        // Defined after lg so it wins when both match (same-width tablet in landscape).
+        'tablet-land': { raw: '(orientation: landscape) and (min-width: 1024px) and (max-width: 1180px) and (max-height: 900px)' },
       },
     },
   },

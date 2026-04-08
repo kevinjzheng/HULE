@@ -7,12 +7,14 @@ import { ScoreModal } from '../scoring/ScoreModal'
 import { WinningHandDisplay } from '../scoring/WinningHandDisplay'
 import { ActionBar } from '../actions/ActionBar'
 import { WinAnimation } from '../animation/WinAnimation'
+import { ScoringGuide } from './ScoringGuide'
 
 export function GameBoard() {
   const { state, dispatch, networkMode } = useGameStore()
-  const { showScoreModal, showWinAnimation, showWinningHand } = useUIStore()
+  const { showScoreModal, showWinAnimation, showWinningHand, showScoringGuide, setShowScoringGuide } = useUIStore()
   const { players, humanPlayerIndex } = state
   const [showEndConfirm, setShowEndConfirm] = useState(false)
+  const isBeginner = state.ruleSettings.comfortLevel === 'beginner'
 
   const activePhases = ['playing', 'bot_turn', 'awaiting_action', 'awaiting_discard']
   const showEndGame = !networkMode && activePhases.includes(state.phase)
@@ -62,6 +64,19 @@ export function GameBoard() {
         <ActionBar />
       </div>
 
+      {/* Scoring Guide button — always visible during active play */}
+      <button
+        onClick={() => setShowScoringGuide(true)}
+        className={`absolute top-2 left-3 transition-all z-10 ${
+          isBeginner
+            ? 'px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/40 border border-yellow-400/50 rounded-lg text-yellow-300 text-sm font-semibold shadow-[0_0_8px_rgba(251,191,36,0.3)] animate-pulse'
+            : 'w-7 h-7 flex items-center justify-center bg-black/30 hover:bg-black/50 border border-white/10 rounded text-white/40 hover:text-white/70 text-sm font-bold'
+        }`}
+        aria-label="Scoring guide"
+      >
+        {isBeginner ? '? Scoring Guide' : '?'}
+      </button>
+
       {/* End Game Early button — single player only */}
       {showEndGame && (
         <button
@@ -102,6 +117,7 @@ export function GameBoard() {
       {showWinningHand && <WinningHandDisplay />}
       {showScoreModal && <ScoreModal />}
       {showWinAnimation && <WinAnimation />}
+      {showScoringGuide && <ScoringGuide onClose={() => setShowScoringGuide(false)} />}
     </div>
   )
 }

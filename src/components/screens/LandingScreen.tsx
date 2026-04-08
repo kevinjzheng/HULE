@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useGameStore } from '../../store/gameStore'
 import type { GameMode, RuleSettings } from '../../types'
 import { DEFAULT_RULES } from '../../types'
-import { initAudio } from '../../utils/sounds'
+import { initAudio, warmTTS } from '../../utils/sounds'
 import { useGameSocket } from '../../hooks/useGameSocket'
 
 type Tab = 'solo' | 'multi'
@@ -30,6 +30,7 @@ export function LandingScreen() {
 
   const handleStart = () => {
     initAudio()
+    warmTTS()
     initGame([playerName || 'Player', 'Bot 1', 'Bot 2', 'Bot 3'], mode, rules)
     dispatch({ type: 'START_GAME' })
   }
@@ -47,6 +48,7 @@ export function LandingScreen() {
     setMpError('')
     setNetworkError(null)
     initAudio()
+    warmTTS()
     createRoom(mpName.trim() || 'Player', mpMode, mpRules)
   }
 
@@ -56,6 +58,7 @@ export function LandingScreen() {
     setMpError('')
     setNetworkError(null)
     initAudio()
+    warmTTS()
     joinRoom(mpName.trim() || 'Player', joinCode.trim().toUpperCase())
   }
 
@@ -268,6 +271,22 @@ function HouseRules({
             </div>
           </div>
 
+          {/* Action timer */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-gray-300 text-xs font-semibold">Action Timer 搶牌時限</div>
+              <span className={`text-xs font-bold ${rules.actionTimeLimit === 0 ? 'text-gray-500' : 'text-yellow-400'}`}>
+                {rules.actionTimeLimit === 0 ? 'Off' : `${rules.actionTimeLimit}s`}
+              </span>
+            </div>
+            <input
+              type="range" min={0} max={30} step={1} value={rules.actionTimeLimit}
+              onChange={e => setRule('actionTimeLimit', parseInt(e.target.value))}
+              className="w-full accent-yellow-400"
+            />
+            <p className="text-gray-500 text-[10px] mt-1">Time to claim Pung, Chow, Kong, or declare a win. 0 = no limit.</p>
+          </div>
+
           {/* Points per fan */}
           <div>
             <div className="text-gray-300 text-xs font-semibold mb-1.5">Points Per Fan 每番點數</div>
@@ -307,6 +326,22 @@ function HouseRules({
               </button>
             </div>
           ))}
+
+          {/* Comfort level */}
+          <div>
+            <div className="text-gray-300 text-xs font-semibold mb-1.5">Comfort Level 經驗水平</div>
+            <div className="flex gap-2">
+              {(['beginner', 'experienced'] as const).map(level => (
+                <button key={level} onClick={() => setRule('comfortLevel', level)}
+                  className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                    rules.comfortLevel === level ? 'bg-yellow-500 text-yellow-900' : 'bg-slate-600 text-gray-300 hover:bg-slate-500'
+                  }`}>
+                  {level === 'beginner' ? 'Beginner 初學' : 'Experienced 老手'}
+                </button>
+              ))}
+            </div>
+            <p className="text-gray-500 text-[10px] mt-1">Beginner highlights useful tiles and shows the scoring guide button prominently.</p>
+          </div>
         </motion.div>
       )}
     </div>

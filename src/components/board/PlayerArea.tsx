@@ -1,9 +1,9 @@
-import React from 'react'
-import type { Player } from '../../types'
+import { useMemo, useEffect, useState } from 'react'
+import type { Player, PendingClaim, Tile } from '../../types'
 import { TileComponent, TileBack } from '../tiles/TileComponent'
 import { useGameStore } from '../../store/gameStore'
 import { useUIStore } from '../../store/uiStore'
-import { WIND_CHARS } from '../../constants/tiles'
+import { WIND_CHARS, tilesEqual } from '../../constants/tiles'
 import { cn } from '../../utils/cn'
 
 type Position = 'top' | 'bottom' | 'left' | 'right'
@@ -14,24 +14,82 @@ interface PlayerAreaProps {
   position: Position
 }
 
-// Sideways tile dimensions: landscape DOM so that after rotate-90 the layout
-// height equals the visual tile height (no extra gap between tiles).
-// portrait: w-[4.6rem] h-[6.2rem]  ← full-size reference
-// sideways: width = portrait H, height = portrait W
-//   → after rotate-90: visual 4.6rem wide × 6.2rem tall
-//   → flex-col spacing per tile: 4.6rem (DOM height) + gap-1
-// We use a slightly smaller value so 13 tiles fit on typical screens (≥900px viewport).
-const SIDEWAYS_SIZE      = { width: '5rem',   height: '3.6rem' } as const
-const SIDEWAYS_MELD_SIZE = { width: '6.2rem', height: '4.6rem' } as const
+// Responsive sideways tile dimensions for left/right players.
+// After rotate-90, DOM width becomes visual height and vice versa.
+function useSidewaysSize() {
+  const [dims, setDims] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  useEffect(() => {
+    const onResize = () => setDims({ w: window.innerWidth, h: window.innerHeight })
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const { w, h } = dims
+  // Tablet landscape: lg-width device but limited vertical space (e.g. iPad landscape)
+  const isTabletLand = w >= 1024 && w <= 1180 && h <= 900
+  if (w < 768) return {
+    tile: { width: '3.2rem', height: '2.4rem' } as const,
+    meld: { width: '4.4rem', height: '3.2rem' } as const,
+  }
+  if (w < 1024 || isTabletLand) return {
+    tile: { width: '4.2rem', height: '3rem' } as const,
+    meld: { width: '5.2rem', height: '3.8rem' } as const,
+  }
+  return {
+    tile: { width: '5rem',   height: '3.6rem' } as const,
+    meld: { width: '6.2rem', height: '4.6rem' } as const,
+  }
+}
+
+function computeClaimHighlights(
+  hand: Tile[],
+  pendingClaim: PendingClaim,
+  lastDiscard: Tile | null,
+): Set<string> {
+  const result = new Set<string>()
+  if (!lastDiscard) return result
+  if (pendingClaim.canWin) {
+    for (const t of hand) result.add(t.id)
+    return result
+  }
+  if (pendingClaim.canKong) {
+    for (const t of hand) {
+      if (tilesEqual(t, lastDiscard)) result.add(t.id)
+    }
+  } else if (pendingClaim.canPung) {
+    let found = 0
+    for (const t of hand) {
+      if (tilesEqual(t, lastDiscard) && found < 2) { result.add(t.id); found++ }
+    }
+  }
+  for (const chowOpt of pendingClaim.canChow) {
+    for (const t of chowOpt) result.add(t.id)
+  }
+  return result
+}
 
 export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
   const { state } = useGameStore()
   const { selectedTileId, setSelectedTileId } = useUIStore()
+  const sideways = useSidewaysSize()
 
   const isHuman = playerIndex === state.humanPlayerIndex
   const isTurn = state.round.turnIndex === playerIndex
   const isVertical = position === 'left' || position === 'right'
   const windChar = WIND_CHARS[['east', 'south', 'west', 'north'].indexOf(player.seatWind) + 1]
+
+  const isBeginner = state.ruleSettings.comfortLevel === 'beginner'
+  const pendingClaim = state.round.pendingClaims[playerIndex]
+
+  const eligibleTileIds = useMemo<Set<string>>(() => {
+    if (!isBeginner || !isHuman) return new Set()
+    if (state.phase === 'awaiting_action' && pendingClaim) {
+      return computeClaimHighlights(player.hand, pendingClaim, state.round.lastDiscard)
+    }
+    return new Set()
+  }, [
+    isBeginner, isHuman, state.phase,
+    player.hand, pendingClaim, state.round.lastDiscard,
+  ])
 
   const tileRotation =
     position === 'left' ? 'rotate-90' :
@@ -72,14 +130,14 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
             key={tile.id}
             medium
             className={cn('flex-shrink-0', tileRotation)}
-            style={SIDEWAYS_SIZE}
+            style={sideways.tile}
           />
         ))}
         {player.drawnTile && !player.hand.some(t => t.id === player.drawnTile?.id) && (
           <TileBack
             medium
             className={cn('flex-shrink-0 ring-1 ring-yellow-400/60', tileRotation)}
-            style={SIDEWAYS_SIZE}
+            style={sideways.tile}
           />
         )}
       </div>
@@ -90,7 +148,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
     const meldColumn = (
       <div
         className="flex flex-col gap-2 items-center flex-shrink-0"
-        style={{ width: SIDEWAYS_MELD_SIZE.height }}
+        style={{ width: sideways.meld.height }}
       >
         {player.melds.map((meld, mi) => (
           <div key={mi} className="flex flex-col gap-1">
@@ -100,7 +158,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
                 tile={t}
                 faceDown={meld.concealed && meld.type === 'kong' && ti === 0}
                 className={tileRotation}
-                style={SIDEWAYS_MELD_SIZE}
+                style={sideways.meld}
               />
             ))}
           </div>
@@ -110,7 +168,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
             key={t.id}
             tile={t}
             className={tileRotation}
-            style={SIDEWAYS_MELD_SIZE}
+            style={sideways.meld}
           />
         ))}
       </div>
@@ -184,6 +242,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
               tile={tile}
               selected={selectedTileId === tile.id}
               highlight={tile.id === player.drawnTile?.id}
+              eligible={!selectedTileId && eligibleTileIds.has(tile.id) && tile.id !== player.drawnTile?.id}
               onClick={() => {
                 if (state.phase !== 'awaiting_discard') return
                 setSelectedTileId(selectedTileId === tile.id ? null : tile.id)
@@ -198,6 +257,7 @@ export function PlayerArea({ player, playerIndex, position }: PlayerAreaProps) {
                   tile={player.drawnTile}
                   highlight
                   selected={selectedTileId === player.drawnTile.id}
+                  eligible={!selectedTileId && eligibleTileIds.has(player.drawnTile.id)}
                   onClick={() => {
                     if (state.phase !== 'awaiting_discard') return
                     setSelectedTileId(
