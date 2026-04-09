@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useGameStore } from '../../store/gameStore'
 import type { GameMode, RuleSettings } from '../../types'
 import { DEFAULT_RULES } from '../../types'
-import { initAudio, warmTTS } from '../../utils/sounds'
+import { initAudio, warmTTS, prefetchTTS } from '../../utils/sounds'
 import { useGameSocket } from '../../hooks/useGameSocket'
 
 type Tab = 'solo' | 'multi'
@@ -13,6 +13,8 @@ export function LandingScreen() {
   const { createRoom, joinRoom } = useGameSocket()
 
   const [tab, setTab] = useState<Tab>('solo')
+
+  useEffect(() => { prefetchTTS() }, [])
 
   // Solo state
   const [playerName, setPlayerName] = useState('Player')

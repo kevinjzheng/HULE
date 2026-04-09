@@ -181,6 +181,9 @@ const TTS_RETRY_COOLDOWN = 30_000
 // Client-side AudioBuffer cache — avoids re-fetching the same term
 const _ttsCache = new Map<string, AudioBuffer>()
 
+// Raw MP3 byte cache — populated by prefetchTTS() before AudioContext is available
+const _rawCache = new Map<string, ArrayBuffer>()
+
 // Web Speech fallback ─────────────────────────────────────────────────────────
 
 let _chineseVoice: SpeechSynthesisVoice | null | undefined = undefined
@@ -228,18 +231,24 @@ function speakWebSpeech(zhText: string, _phonetic: string) {
  *
  * @param zhText   Chinese characters to synthesise (yue-HK WaveNet voice)
  * @param phonetic English phonetic spelling used only when no server or Chinese
- *                 voice is available (e.g. 'pung', 'gong', 'wu pai')
+ *                 voice is available (e.g. 'pung3', 'gong3', 'sik6 wu2')
  */
-async function fetchTTSBuffer(zhText: string): Promise<AudioBuffer> {
-  const cached = _ttsCache.get(zhText)
-  if (cached) return cached
+async function fetchRaw(zhText: string): Promise<ArrayBuffer> {
   const ac = new AbortController()
   setTimeout(() => ac.abort(), 5000)
   const res = await fetch(`${_TTS_BASE}/tts?text=${encodeURIComponent(zhText)}`, { signal: ac.signal })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const arrayBuf = await res.arrayBuffer()
+  return res.arrayBuffer()
+}
+
+async function fetchTTSBuffer(zhText: string): Promise<AudioBuffer> {
+  const cached = _ttsCache.get(zhText)
+  if (cached) return cached
+  // Use pre-fetched raw bytes if available (no extra network round-trip)
+  const arrayBuf = _rawCache.get(zhText) ?? await fetchRaw(zhText)
   const audioBuffer = await ctx().decodeAudioData(arrayBuf)
   _ttsCache.set(zhText, audioBuffer)
+  _rawCache.delete(zhText)
   return audioBuffer
 }
 
@@ -264,18 +273,31 @@ export async function speak(zhText: string, phonetic: string): Promise<void> {
   }
 }
 
-export const sayChow   = () => speak('上',   'seong')
-export const sayPung   = () => speak('碰',   'pung')
-export const sayKong   = () => speak('槓',   'gong')
-export const sayFlower = () => speak('花牌', 'faa paai')
-export const sayWin    = () => speak('食糊', 'sik wu')
-export const sayZimo   = () => speak('自摸', 'zi mo')
+export const sayChow   = () => speak('上',   'soeng5')
+export const sayPung   = () => speak('碰',   'pung3')
+export const sayKong   = () => speak('槓',   'gong3')
+export const sayFlower = () => speak('花牌', 'faa1 paai4')
+export const sayWin    = () => speak('食糊', 'sik6 wu2')
+export const sayZimo   = () => speak('自摸', 'zi6 mo2')
 
 const TTS_ALL_TERMS = ['上', '碰', '槓', '花牌', '食糊', '自摸']
 
 /**
- * Pre-fetch all TTS audio into the client cache (no playback).
- * Call once at game start (after a user gesture has unlocked AudioContext).
+ * Pre-fetch raw MP3 bytes for all TTS terms — no AudioContext required.
+ * Safe to call on page load. warmTTS() will decode these instantly later.
+ */
+export function prefetchTTS() {
+  for (const zh of TTS_ALL_TERMS) {
+    if (_ttsCache.has(zh) || _rawCache.has(zh)) continue
+    fetchRaw(zh)
+      .then(buf => { _rawCache.set(zh, buf); _ttsAvailable = true })
+      .catch(() => { /* silently ignore — speak() will retry on demand */ })
+  }
+}
+
+/**
+ * Decode pre-fetched MP3 bytes into AudioBuffers ready for playback.
+ * Call once after a user gesture has unlocked AudioContext.
  * Failures are silently ignored — speak() will retry on demand.
  */
 export function warmTTS() {
