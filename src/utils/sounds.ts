@@ -184,6 +184,16 @@ const _ttsCache = new Map<string, AudioBuffer>()
 // Raw MP3 byte cache — populated by prefetchTTS() before AudioContext is available
 const _rawCache = new Map<string, ArrayBuffer>()
 
+// Local static MP3 files bundled with the app (public/tts/) — loaded first, no server needed
+const TTS_LOCAL: Record<string, string> = {
+  '上':   '/tts/chow.mp3',
+  '碰':   '/tts/pung.mp3',
+  '槓':   '/tts/kong.mp3',
+  '花牌': '/tts/flower.mp3',
+  '食糊': '/tts/win.mp3',
+  '自摸': '/tts/zimo.mp3',
+}
+
 // Web Speech fallback ─────────────────────────────────────────────────────────
 
 let _chineseVoice: SpeechSynthesisVoice | null | undefined = undefined
@@ -234,6 +244,15 @@ function speakWebSpeech(zhText: string, _phonetic: string) {
  *                 voice is available (e.g. 'pung3', 'gong3', 'sik6 wu2')
  */
 async function fetchRaw(zhText: string): Promise<ArrayBuffer> {
+  // Try local bundled file first — instant, no server needed
+  const localPath = TTS_LOCAL[zhText]
+  if (localPath) {
+    try {
+      const res = await fetch(localPath)
+      if (res.ok) return res.arrayBuffer()
+    } catch { /* fall through to server */ }
+  }
+  // Fall back to server TTS proxy
   const ac = new AbortController()
   setTimeout(() => ac.abort(), 5000)
   const res = await fetch(`${_TTS_BASE}/tts?text=${encodeURIComponent(zhText)}`, { signal: ac.signal })
@@ -273,7 +292,7 @@ export async function speak(zhText: string, phonetic: string): Promise<void> {
   }
 }
 
-export const sayChow   = () => speak('上',   'soeng5')
+export const sayChow   = () => speak('上',   'soeng6')
 export const sayPung   = () => speak('碰',   'pung3')
 export const sayKong   = () => speak('槓',   'gong3')
 export const sayFlower = () => speak('花牌', 'faa1 paai4')
